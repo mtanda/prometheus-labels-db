@@ -20,7 +20,7 @@ type LabelDB struct {
 	db *sql.DB
 }
 
-//go:embed table.sql
+//go:embed sql/table.sql
 var createTableStmt string
 
 func Open(dir string) (*LabelDB, error) {
