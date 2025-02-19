@@ -23,13 +23,20 @@ func TestInsertMetric(t *testing.T) {
 	}
 	defer db.Close()
 
-	err = db.Init(ctx)
+	fromTS, err := time.ParseInLocation(time.RFC3339, "2025-01-01T00:00:00Z", time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	toTS, err := time.ParseInLocation(time.RFC3339, "2025-01-02T00:00:00Z", time.UTC)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fromTS := int64(5)
-	toTS := int64(10)
+	err = db.Init(ctx, fromTS)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	err = db.RecordMetric(ctx, Metric{
 		Namespace: "test_namespace",
 		Name:      "test_name",
@@ -57,7 +64,10 @@ func TestInsertMetric(t *testing.T) {
 
 	var metric Metric
 	var dim []byte
-	err = rows.Scan(&metric.MetricID, &metric.Namespace, &metric.Name, &metric.Region, &dim, &metric.FromTS, &metric.ToTS, &metric.UpdatedAt)
+	var from int64
+	var to int64
+	var updatedAt int64
+	err = rows.Scan(&metric.MetricID, &metric.Namespace, &metric.Name, &metric.Region, &dim, &from, &to, &updatedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,6 +76,9 @@ func TestInsertMetric(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	metric.FromTS = time.Unix(from, 0).UTC()
+	metric.ToTS = time.Unix(to, 0).UTC()
+	metric.UpdatedAt = time.Unix(updatedAt, 0).UTC()
 	if metric.MetricID != 1 ||
 		metric.Namespace != "test_namespace" ||
 		metric.Name != "test_name" ||
@@ -73,8 +86,8 @@ func TestInsertMetric(t *testing.T) {
 		len(metric.Dimensions) != 1 ||
 		metric.Dimensions[0].Name != "dim1" ||
 		metric.Dimensions[0].Value != "dim_value1" ||
-		metric.FromTS != fromTS ||
-		metric.ToTS != toTS {
+		!metric.FromTS.Equal(fromTS) ||
+		!metric.ToTS.Equal(toTS) {
 		t.Fatalf("unexpected row: %+v", metric)
 	}
 
@@ -84,19 +97,21 @@ func TestInsertMetric(t *testing.T) {
 	}
 
 	// check metrics_lifetime table
-	rows, err = db.db.QueryContext(ctx, "SELECT * FROM metrics_lifetime")
+	rows, err = db.db.QueryContext(ctx, "SELECT * FROM metrics_lifetime_20241111_20250202")
 	if err != nil {
 		t.Fatal(err)
 	}
 	rows.Next()
 
 	var lifetime MetricLifetime
-	err = rows.Scan(&lifetime.MetricID, &lifetime.FromTS, &lifetime.ToTS)
+	err = rows.Scan(&lifetime.MetricID, &from, &to)
 	if err != nil {
 		t.Fatal(err)
 	}
+	lifetime.FromTS = time.Unix(from, 0).UTC()
+	lifetime.ToTS = time.Unix(to, 0).UTC()
 
-	if lifetime.MetricID != 1 || lifetime.FromTS != int32(fromTS) || lifetime.ToTS != int32(toTS) {
+	if lifetime.MetricID != 1 || !lifetime.FromTS.Equal(fromTS) || !lifetime.ToTS.Equal(toTS) {
 		t.Fatalf("unexpected row: %+v", lifetime)
 	}
 
@@ -115,13 +130,20 @@ func TestUpdateMetric(t *testing.T) {
 	}
 	defer db.Close()
 
-	err = db.Init(ctx)
+	fromTS, err := time.ParseInLocation(time.RFC3339, "2025-01-01T00:00:00Z", time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	toTS, err := time.ParseInLocation(time.RFC3339, "2025-01-02T00:00:00Z", time.UTC)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fromTS := int64(5)
-	toTS := int64(10)
+	err = db.Init(ctx, fromTS)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	err = db.RecordMetric(ctx, Metric{
 		Namespace: "test_namespace",
 		Name:      "test_name",
@@ -133,7 +155,7 @@ func TestUpdateMetric(t *testing.T) {
 			},
 		},
 		FromTS: fromTS,
-		ToTS:   toTS - 1,
+		ToTS:   toTS.Add(-1 * time.Second),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +187,10 @@ func TestUpdateMetric(t *testing.T) {
 
 	var metric Metric
 	var dim []byte
-	err = rows.Scan(&metric.MetricID, &metric.Namespace, &metric.Name, &metric.Region, &dim, &metric.FromTS, &metric.ToTS, &metric.UpdatedAt)
+	var from int64
+	var to int64
+	var updatedAt int64
+	err = rows.Scan(&metric.MetricID, &metric.Namespace, &metric.Name, &metric.Region, &dim, &from, &to, &updatedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,6 +199,9 @@ func TestUpdateMetric(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	metric.FromTS = time.Unix(from, 0).UTC()
+	metric.ToTS = time.Unix(to, 0).UTC()
+	metric.UpdatedAt = time.Unix(updatedAt, 0).UTC()
 	if metric.MetricID != 1 ||
 		metric.Namespace != "test_namespace" ||
 		metric.Name != "test_name" ||
@@ -181,8 +209,8 @@ func TestUpdateMetric(t *testing.T) {
 		len(metric.Dimensions) != 1 ||
 		metric.Dimensions[0].Name != "dim1" ||
 		metric.Dimensions[0].Value != "dim_value1" ||
-		metric.FromTS != fromTS ||
-		metric.ToTS != toTS {
+		!metric.FromTS.Equal(fromTS) ||
+		!metric.ToTS.Equal(toTS) {
 		t.Fatalf("unexpected row: %+v", metric)
 	}
 
@@ -192,19 +220,21 @@ func TestUpdateMetric(t *testing.T) {
 	}
 
 	// check metrics_lifetime table
-	rows, err = db.db.QueryContext(ctx, "SELECT * FROM metrics_lifetime")
+	rows, err = db.db.QueryContext(ctx, "SELECT * FROM metrics_lifetime_20241111_20250202")
 	if err != nil {
 		t.Fatal(err)
 	}
 	rows.Next()
 
 	var lifetime MetricLifetime
-	err = rows.Scan(&lifetime.MetricID, &lifetime.FromTS, &lifetime.ToTS)
+	err = rows.Scan(&lifetime.MetricID, &from, &to)
 	if err != nil {
 		t.Fatal(err)
 	}
+	lifetime.FromTS = time.Unix(from, 0).UTC()
+	lifetime.ToTS = time.Unix(to, 0).UTC()
 
-	if lifetime.MetricID != 1 || lifetime.FromTS != int32(fromTS) || lifetime.ToTS != int32(toTS) {
+	if lifetime.MetricID != 1 || !lifetime.FromTS.Equal(fromTS) || !lifetime.ToTS.Equal(toTS) {
 		t.Fatalf("unexpected row: %+v", lifetime)
 	}
 
@@ -223,13 +253,20 @@ func TestInsertInvalidMetric(t *testing.T) {
 	}
 	defer db.Close()
 
-	err = db.Init(ctx)
+	fromTS, err := time.ParseInLocation(time.RFC3339, "2025-01-02T00:00:00Z", time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	toTS, err := time.ParseInLocation(time.RFC3339, "2025-01-01T00:00:00Z", time.UTC)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fromTS := int64(10)
-	toTS := int64(5)
+	err = db.Init(ctx, fromTS)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	err = db.RecordMetric(ctx, Metric{
 		Namespace: "test_namespace",
 		Name:      "test_name",
@@ -251,7 +288,7 @@ func TestInsertInvalidMetric(t *testing.T) {
 	if !errors.Is(row.Scan(), sql.ErrNoRows) {
 		t.Fatal("expected no rows")
 	}
-	row = db.db.QueryRowContext(ctx, "SELECT * FROM metrics_lifetime")
+	row = db.db.QueryRowContext(ctx, "SELECT * FROM metrics_lifetime_20241111_20250202")
 	if !errors.Is(row.Scan(), sql.ErrNoRows) {
 		t.Fatal("expected no rows")
 	}
@@ -266,19 +303,19 @@ func BenchmarkInsert10000Metrics(b *testing.B) {
 	}
 	defer db.Close()
 
-	err = db.Init(ctx)
+	now := time.Now().UTC()
+	err = db.Init(ctx, now)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	now := time.Now().Unix()
 	for i := 0; i < 2; i++ {
 		for j := 0; j < 10000; j++ {
-			fromTS := now - int64(rand.Intn(365*24*60*60))
+			fromTS := now.Add(-1 * time.Duration(rand.Intn(365*24*60*60)) * time.Second)
 			if i == 0 {
-				fromTS -= 365 * 24 * 60 * 60
+				fromTS = fromTS.Add(-365 * 24 * 60 * 60 * time.Second)
 			}
-			toTS := fromTS + int64(rand.Intn(60*60))
+			toTS := fromTS.Add(time.Duration(rand.Intn(60*60)) * time.Second)
 			err = db.RecordMetric(ctx, Metric{
 				Namespace: "test_namespace",
 				Name:      "test_name",

@@ -12,4 +12,6 @@ CREATE TABLE IF NOT EXISTS metrics (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_metrics ON metrics(namespace, name, region, dimensions);
 
-CREATE VIRTUAL TABLE IF NOT EXISTS metrics_lifetime USING rtree_i32(metric_id, from_timestamp, to_timestamp);
+CREATE VIRTUAL TABLE IF NOT EXISTS `metrics_lifetime{{.MetricsLifetimePreSuffix}}` USING rtree_i32(metric_id, from_timestamp, to_timestamp);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS `metrics_lifetime{{.MetricsLifetimeCurSuffix}}` USING rtree_i32(metric_id, from_timestamp, to_timestamp);

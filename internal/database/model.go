@@ -2,17 +2,18 @@ package database
 
 import (
 	"strings"
+	"time"
 )
 
 type Metric struct {
-	MetricID   int32
+	MetricID   int64
 	Namespace  string
 	Name       string
 	Region     string
 	Dimensions Dimensions
-	FromTS     int64
-	ToTS       int64
-	UpdatedAt  int64
+	FromTS     time.Time
+	ToTS       time.Time
+	UpdatedAt  time.Time
 }
 
 type Dimensions []Dimension
@@ -32,6 +33,6 @@ func (ds Dimensions) marsharlJSON() ([]byte, error) {
 
 type MetricLifetime struct {
 	MetricID int64
-	FromTS   int32
-	ToTS     int32
+	FromTS   time.Time
+	ToTS     time.Time
 }
