@@ -33,11 +33,6 @@ func TestInsertMetric(t *testing.T) {
 	}
 
 	namespace := "test_namespace"
-	err = db.Init(ctx, fromTS, namespace)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	err = db.RecordMetric(ctx, Metric{
 		Namespace: namespace,
 		Name:      "test_name",
@@ -141,11 +136,6 @@ func TestUpdateMetric(t *testing.T) {
 	}
 
 	namespace := "test_namespace"
-	err = db.Init(ctx, fromTS, namespace)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	err = db.RecordMetric(ctx, Metric{
 		Namespace: namespace,
 		Name:      "test_name",
@@ -265,11 +255,6 @@ func TestInsertInvalidMetric(t *testing.T) {
 	}
 
 	namespace := "test_namespace"
-	err = db.Init(ctx, fromTS, namespace)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	err = db.RecordMetric(ctx, Metric{
 		Namespace: namespace,
 		Name:      "test_name",
@@ -307,12 +292,6 @@ func BenchmarkInsert10000Metrics(b *testing.B) {
 	defer db.Close()
 
 	now := time.Now().UTC()
-	namespace := "test_namespace"
-	err = db.Init(ctx, now, namespace)
-	if err != nil {
-		b.Fatal(err)
-	}
-
 	for i := 0; i < 2; i++ {
 		for j := 0; j < 10000; j++ {
 			fromTS := now.Add(-1 * time.Duration(rand.Intn(365*24*60*60)) * time.Second)
@@ -321,7 +300,7 @@ func BenchmarkInsert10000Metrics(b *testing.B) {
 			}
 			toTS := fromTS.Add(time.Duration(rand.Intn(60*60)) * time.Second)
 			err = db.RecordMetric(ctx, Metric{
-				Namespace: namespace,
+				Namespace: "test_namespace",
 				Name:      "test_name",
 				Region:    "test_region",
 				Dimensions: []Dimension{

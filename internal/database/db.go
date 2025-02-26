@@ -11,16 +11,19 @@ import (
 
 	_ "embed"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 const (
 	DbPath            = "labels.db"
 	PartitionInterval = 3 * 4 * 7 * 24 * time.Hour
+	InitCacheSize     = 1000
 )
 
 type LabelDB struct {
-	db *sql.DB
+	db    *sql.DB
+	cache *lru.Cache[string, struct{}]
 }
 
 //go:embed sql/table.sql
@@ -31,8 +34,13 @@ func Open(dir string) (*LabelDB, error) {
 	if err != nil {
 		return nil, err
 	}
+	cache, err := lru.New[string, struct{}](InitCacheSize)
+	if err != nil {
+		return nil, err
+	}
 	return &LabelDB{
-		db: db,
+		db:    db,
+		cache: cache,
 	}, nil
 }
 
@@ -40,13 +48,19 @@ func (ldb *LabelDB) Close() error {
 	return ldb.db.Close()
 }
 
-func (ldb *LabelDB) Init(ctx context.Context, t time.Time, namespace string) error {
+func (ldb *LabelDB) init(ctx context.Context, t time.Time, namespace string) error {
+	suffix := getLifetimeTableSuffix(t, namespace)
+	_, found := ldb.cache.Get(suffix)
+	if found {
+		return nil
+	}
+
 	data := struct {
 		MetricsLifetimePreSuffix string
 		MetricsLifetimeCurSuffix string
 	}{
 		MetricsLifetimePreSuffix: getLifetimeTableSuffix(t.Add(-1*PartitionInterval), namespace),
-		MetricsLifetimeCurSuffix: getLifetimeTableSuffix(t, namespace),
+		MetricsLifetimeCurSuffix: suffix,
 	}
 	tmpl, err := template.New("").Parse(createTableStmt)
 	if err != nil {
@@ -57,15 +71,14 @@ func (ldb *LabelDB) Init(ctx context.Context, t time.Time, namespace string) err
 		return err
 	}
 
-	err = withTx(ctx, ldb.db, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, sb.String())
-		if err != nil {
-			return err
-		}
-		return nil
-	})
+	_, err = ldb.db.ExecContext(ctx, sb.String())
+	if err != nil {
+		return err
+	}
 
-	return err
+	ldb.cache.Add(suffix, struct{}{})
+
+	return nil
 }
 
 func (ldb *LabelDB) RecordMetric(ctx context.Context, metric Metric) error {
@@ -75,6 +88,13 @@ func (ldb *LabelDB) RecordMetric(ctx context.Context, metric Metric) error {
 	}
 	if metric.ToTS.Before(metric.FromTS) {
 		return errors.New("from timestamp is greater than to timestamp")
+	}
+
+	err = withTx(ctx, ldb.db, func(tx *sql.Tx) error {
+		return ldb.init(ctx, metric.FromTS, metric.Namespace)
+	})
+	if err != nil {
+		return err
 	}
 
 	err = withTx(ctx, ldb.db, func(tx *sql.Tx) error {
