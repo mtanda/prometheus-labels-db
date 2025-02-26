@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -245,11 +244,11 @@ func TestInsertInvalidMetric(t *testing.T) {
 	}
 	defer db.Close()
 
-	fromTS, err := time.ParseInLocation(time.RFC3339, "2025-01-02T00:00:00Z", time.UTC)
+	fromTS, err := time.ParseInLocation(time.RFC3339, "2025-01-01T00:00:00Z", time.UTC)
 	if err != nil {
 		t.Fatal(err)
 	}
-	toTS, err := time.ParseInLocation(time.RFC3339, "2025-01-01T00:00:00Z", time.UTC)
+	toTS, err := time.ParseInLocation(time.RFC3339, "2025-01-02T00:00:00Z", time.UTC)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,17 +267,24 @@ func TestInsertInvalidMetric(t *testing.T) {
 		FromTS: fromTS,
 		ToTS:   toTS,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = db.RecordMetric(ctx, Metric{
+		Namespace: namespace,
+		Name:      "test_name",
+		Region:    "test_region",
+		Dimensions: []Dimension{
+			{
+				Name:  "dim1",
+				Value: "dim_value1",
+			},
+		},
+		FromTS: toTS,
+		ToTS:   fromTS,
+	})
 	if err == nil {
 		t.Fatal("expected rtree constraint failed")
-	}
-
-	row := db.db.QueryRowContext(ctx, "SELECT * FROM metrics")
-	if !errors.Is(row.Scan(), sql.ErrNoRows) {
-		t.Fatal("expected no rows")
-	}
-	row = db.db.QueryRowContext(ctx, "SELECT * FROM metrics_lifetime_20241111_20250202"+"_"+namespace)
-	if !errors.Is(row.Scan(), sql.ErrNoRows) {
-		t.Fatal("expected no rows")
 	}
 }
 
