@@ -40,13 +40,13 @@ func (ldb *LabelDB) Close() error {
 	return ldb.db.Close()
 }
 
-func (ldb *LabelDB) Init(ctx context.Context, t time.Time) error {
+func (ldb *LabelDB) Init(ctx context.Context, t time.Time, namespace string) error {
 	data := struct {
 		MetricsLifetimePreSuffix string
 		MetricsLifetimeCurSuffix string
 	}{
-		MetricsLifetimePreSuffix: getPartitionSuffix(t.Add(-1 * PartitionInterval)),
-		MetricsLifetimeCurSuffix: getPartitionSuffix(t),
+		MetricsLifetimePreSuffix: getLifetimeTableSuffix(t.Add(-1*PartitionInterval), namespace),
+		MetricsLifetimeCurSuffix: getLifetimeTableSuffix(t, namespace),
 	}
 	tmpl, err := template.New("").Parse(createTableStmt)
 	if err != nil {
@@ -137,7 +137,7 @@ func (ldb *LabelDB) RecordMetric(ctx context.Context, metric Metric) error {
 
 		trs := getLifetimeRanges(time.Unix(fromTS, 0).UTC(), time.Unix(toTS, 0).UTC())
 		for _, tr := range trs {
-			s := getPartitionSuffix(tr.From)
+			s := getLifetimeTableSuffix(tr.From, metric.Namespace)
 			res, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO metrics_lifetime`+s+`(
 				metric_id,
 				from_timestamp,
@@ -209,9 +209,9 @@ func getPartition(t time.Time) timeRange {
 	}
 }
 
-func getPartitionSuffix(t time.Time) string {
+func getLifetimeTableSuffix(t time.Time, namespace string) string {
 	p := getPartition(t)
-	return "_" + p.From.Format("20060102") + "_" + p.To.Format("20060102")
+	return "_" + p.From.Format("20060102") + "_" + p.To.Format("20060102") + "_" + namespace
 }
 
 func getLifetimeRanges(from time.Time, to time.Time) []timeRange {

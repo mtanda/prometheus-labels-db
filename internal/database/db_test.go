@@ -32,13 +32,14 @@ func TestInsertMetric(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = db.Init(ctx, fromTS)
+	namespace := "test_namespace"
+	err = db.Init(ctx, fromTS, namespace)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	err = db.RecordMetric(ctx, Metric{
-		Namespace: "test_namespace",
+		Namespace: namespace,
 		Name:      "test_name",
 		Region:    "test_region",
 		Dimensions: []Dimension{
@@ -80,7 +81,7 @@ func TestInsertMetric(t *testing.T) {
 	metric.ToTS = time.Unix(to, 0).UTC()
 	metric.UpdatedAt = time.Unix(updatedAt, 0).UTC()
 	if metric.MetricID != 1 ||
-		metric.Namespace != "test_namespace" ||
+		metric.Namespace != namespace ||
 		metric.Name != "test_name" ||
 		metric.Region != "test_region" ||
 		len(metric.Dimensions) != 1 ||
@@ -97,7 +98,7 @@ func TestInsertMetric(t *testing.T) {
 	}
 
 	// check metrics_lifetime table
-	rows, err = db.db.QueryContext(ctx, "SELECT * FROM metrics_lifetime_20241111_20250202")
+	rows, err = db.db.QueryContext(ctx, "SELECT * FROM metrics_lifetime_20241111_20250202"+"_"+namespace)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,13 +140,14 @@ func TestUpdateMetric(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = db.Init(ctx, fromTS)
+	namespace := "test_namespace"
+	err = db.Init(ctx, fromTS, namespace)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	err = db.RecordMetric(ctx, Metric{
-		Namespace: "test_namespace",
+		Namespace: namespace,
 		Name:      "test_name",
 		Region:    "test_region",
 		Dimensions: []Dimension{
@@ -161,7 +163,7 @@ func TestUpdateMetric(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = db.RecordMetric(ctx, Metric{
-		Namespace: "test_namespace",
+		Namespace: namespace,
 		Name:      "test_name",
 		Region:    "test_region",
 		Dimensions: []Dimension{
@@ -203,7 +205,7 @@ func TestUpdateMetric(t *testing.T) {
 	metric.ToTS = time.Unix(to, 0).UTC()
 	metric.UpdatedAt = time.Unix(updatedAt, 0).UTC()
 	if metric.MetricID != 1 ||
-		metric.Namespace != "test_namespace" ||
+		metric.Namespace != namespace ||
 		metric.Name != "test_name" ||
 		metric.Region != "test_region" ||
 		len(metric.Dimensions) != 1 ||
@@ -220,7 +222,7 @@ func TestUpdateMetric(t *testing.T) {
 	}
 
 	// check metrics_lifetime table
-	rows, err = db.db.QueryContext(ctx, "SELECT * FROM metrics_lifetime_20241111_20250202")
+	rows, err = db.db.QueryContext(ctx, "SELECT * FROM metrics_lifetime_20241111_20250202"+"_"+namespace)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,13 +264,14 @@ func TestInsertInvalidMetric(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = db.Init(ctx, fromTS)
+	namespace := "test_namespace"
+	err = db.Init(ctx, fromTS, namespace)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	err = db.RecordMetric(ctx, Metric{
-		Namespace: "test_namespace",
+		Namespace: namespace,
 		Name:      "test_name",
 		Region:    "test_region",
 		Dimensions: []Dimension{
@@ -288,7 +291,7 @@ func TestInsertInvalidMetric(t *testing.T) {
 	if !errors.Is(row.Scan(), sql.ErrNoRows) {
 		t.Fatal("expected no rows")
 	}
-	row = db.db.QueryRowContext(ctx, "SELECT * FROM metrics_lifetime_20241111_20250202")
+	row = db.db.QueryRowContext(ctx, "SELECT * FROM metrics_lifetime_20241111_20250202"+"_"+namespace)
 	if !errors.Is(row.Scan(), sql.ErrNoRows) {
 		t.Fatal("expected no rows")
 	}
@@ -304,7 +307,8 @@ func BenchmarkInsert10000Metrics(b *testing.B) {
 	defer db.Close()
 
 	now := time.Now().UTC()
-	err = db.Init(ctx, now)
+	namespace := "test_namespace"
+	err = db.Init(ctx, now, namespace)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -317,7 +321,7 @@ func BenchmarkInsert10000Metrics(b *testing.B) {
 			}
 			toTS := fromTS.Add(time.Duration(rand.Intn(60*60)) * time.Second)
 			err = db.RecordMetric(ctx, Metric{
-				Namespace: "test_namespace",
+				Namespace: namespace,
 				Name:      "test_name",
 				Region:    "test_region",
 				Dimensions: []Dimension{
