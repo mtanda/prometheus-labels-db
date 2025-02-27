@@ -5,6 +5,7 @@ pkgs.mkShell {
   packages = [
     pkgs.go
     pkgs.gopls
+    pkgs.gotests
     pkgs.delve
   ];
 }
