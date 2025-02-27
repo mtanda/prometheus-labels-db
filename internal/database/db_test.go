@@ -11,6 +11,7 @@ import (
 	"math/rand"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/prometheus/prometheus/model/labels"
 )
 
 func TestInsertMetric(t *testing.T) {
@@ -285,6 +286,121 @@ func TestInsertInvalidMetric(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected rtree constraint failed")
+	}
+}
+
+func TestQueryMetrics(t *testing.T) {
+	ctx := context.Background()
+	dbDir := t.TempDir()
+	db, err := Open(dbDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	fromTS, err := time.ParseInLocation(time.RFC3339, "2025-01-01T00:00:00Z", time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	toTS, err := time.ParseInLocation(time.RFC3339, "2025-01-02T00:00:00Z", time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	generateMetrics := func(ns, n, r, dn, dv string, f, t time.Time) Metric {
+		return Metric{
+			Namespace: ns,
+			Name:      n,
+			Region:    r,
+			Dimensions: []Dimension{
+				{
+					Name:  dn,
+					Value: dv,
+				},
+			},
+			FromTS: f,
+			ToTS:   t,
+		}
+	}
+
+	fromTS2 := fromTS.Add(1 * 24 * time.Hour)
+	toTS2 := toTS.Add(1 * 24 * time.Hour)
+	metrics := []Metric{
+		generateMetrics("test_namespace", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
+		generateMetrics("test_namespace2", "test_name2", "test_region2", "dim2", "dim_value2", fromTS, toTS),
+		generateMetrics("test_namespace", "test_name", "test_region", "dim3", "dim_value3", fromTS2, toTS2),
+	}
+	for _, m := range metrics {
+		err = db.RecordMetric(ctx, m)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	tests := []struct {
+		name string
+		from time.Time
+		to   time.Time
+		lm   []*labels.Matcher
+		want []Metric
+	}{
+		{
+			name: "match1",
+			from: fromTS,
+			to:   toTS,
+			lm: []*labels.Matcher{
+				labels.MustNewMatcher(labels.MatchEqual, "namespace", "test_namespace"),
+				labels.MustNewMatcher(labels.MatchEqual, "name", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
+				labels.MustNewMatcher(labels.MatchEqual, "dim1", "dim_value1"),
+			},
+			want: []Metric{
+				generateMetrics("test_namespace", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
+			},
+		},
+		{
+			name: "match2",
+			from: fromTS,
+			to:   toTS,
+			lm: []*labels.Matcher{
+				labels.MustNewMatcher(labels.MatchEqual, "namespace", "test_namespace2"),
+				labels.MustNewMatcher(labels.MatchEqual, "name", "test_name2"),
+				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region2"),
+				labels.MustNewMatcher(labels.MatchEqual, "dim2", "dim_value2"),
+			},
+			want: []Metric{
+				generateMetrics("test_namespace2", "test_name2", "test_region2", "dim2", "dim_value2", fromTS, toTS),
+			},
+		},
+		{
+			name: "match3",
+			from: fromTS2,
+			to:   toTS2,
+			lm: []*labels.Matcher{
+				labels.MustNewMatcher(labels.MatchEqual, "namespace", "test_namespace"),
+				labels.MustNewMatcher(labels.MatchEqual, "name", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
+			},
+			want: []Metric{
+				generateMetrics("test_namespace", "test_name", "test_region", "dim3", "dim_value3", fromTS2, toTS2),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := db.QueryMetrics(ctx, tt.from, tt.to, tt.lm)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("unexpected length: got=%d, want=%d", len(got), len(tt.want))
+			}
+			for i := range got {
+				if !got[i].Equal(tt.want[i]) {
+					t.Fatalf("unexpected query results: got=%+v, want=%+v", got[i], tt.want[i])
+				}
+			}
+		})
 	}
 }
 

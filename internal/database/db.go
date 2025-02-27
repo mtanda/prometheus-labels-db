@@ -13,6 +13,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/prometheus/prometheus/model/labels"
 )
 
 const (
@@ -191,6 +192,74 @@ func (ldb *LabelDB) RecordMetric(ctx context.Context, metric Metric) error {
 	})
 
 	return err
+}
+
+func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*labels.Matcher) ([]Metric, error) {
+	ms := []Metric{}
+	var whereClause []string
+	var args []interface{}
+
+	// set time range
+	whereClause = append(whereClause, "ml.from_timestamp <= ?")
+	args = append(args, from.Unix())
+	whereClause = append(whereClause, "ml.to_timestamp >= ?")
+	args = append(args, to.Unix())
+
+	// convert prometheus label matchers to sql where clause
+	var namespace string
+	for _, m := range lm {
+		ln := m.Name
+		lv := m.Value
+		if ln == "namespace" {
+			namespace = lv
+		}
+		if ln == "namespace" || ln == "name" || ln == "region" {
+			ln = `m.` + ln
+		} else {
+			ln = `m.dimensions->>'$.` + ln + `'`
+		}
+		switch m.Type {
+		case labels.MatchEqual:
+			whereClause = append(whereClause, ln+" = ?")
+			args = append(args, lv)
+		case labels.MatchNotEqual:
+			whereClause = append(whereClause, ln+" != ?")
+			args = append(args, lv)
+		}
+	}
+	if namespace == "" {
+		return ms, errors.New("namespace label matcher is required")
+	}
+
+	s := getLifetimeTableSuffix(from, namespace)
+	q := `SELECT m.*
+FROM metrics_lifetime` + s + ` ml
+JOIN metrics m ON ml.metric_id = m.metric_id
+WHERE ` + strings.Join(whereClause, " AND ")
+	rows, err := ldb.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return ms, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var m Metric
+		var dim []byte
+		var fromTS int64
+		var toTS int64
+		var updatedAt int64
+		rows.Scan(&m.MetricID, &m.Namespace, &m.Name, &m.Region, &dim, &fromTS, &toTS, &updatedAt)
+		err = json.Unmarshal(dim, &m.Dimensions)
+		if err != nil {
+			return ms, err
+		}
+		m.FromTS = time.Unix(fromTS, 0).UTC()
+		m.ToTS = time.Unix(toTS, 0).UTC()
+		m.UpdatedAt = time.Unix(updatedAt, 0).UTC()
+		ms = append(ms, m)
+	}
+
+	return ms, nil
 }
 
 func withTx(ctx context.Context, db *sql.DB, f func(tx *sql.Tx) error) error {
