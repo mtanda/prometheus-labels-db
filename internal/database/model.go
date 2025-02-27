@@ -23,7 +23,7 @@ type Dimension struct {
 	Value string
 }
 
-func (ds Dimensions) marsharlJSON() ([]byte, error) {
+func (ds Dimensions) MarshalJSON() ([]byte, error) {
 	s := make([]string, 0, len(ds))
 	for _, d := range ds {
 		s = append(s, `"`+d.Name+`": "`+d.Value+`"`)
