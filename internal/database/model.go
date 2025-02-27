@@ -10,7 +10,7 @@ import (
 type Metric struct {
 	MetricID   int64
 	Namespace  string
-	Name       string
+	MetricName string
 	Region     string
 	Dimensions Dimensions
 	FromTS     time.Time
@@ -53,7 +53,7 @@ func (ds *Dimensions) UnmarshalJSON(b []byte) error {
 
 func (a Metric) Equal(b Metric) bool {
 	if a.Namespace != b.Namespace ||
-		a.Name != b.Name ||
+		a.MetricName != b.MetricName ||
 		a.Region != b.Region ||
 		len(a.Dimensions) != len(b.Dimensions) ||
 		!a.FromTS.Equal(b.FromTS) ||

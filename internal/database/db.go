@@ -102,10 +102,10 @@ func (ldb *LabelDB) RecordMetric(ctx context.Context, metric Metric) error {
 		row := ldb.db.QueryRowContext(ctx, `SELECT metric_id, from_timestamp, to_timestamp FROM metrics
 		WHERE
 			namespace = ? AND
-			name = ? AND
+			metric_name = ? AND
 			region = ? AND
 			dimensions = ?
-		`, metric.Namespace, metric.Name, metric.Region, d)
+		`, metric.Namespace, metric.MetricName, metric.Region, d)
 
 		var metricID int64
 		var fromTS int64
@@ -114,7 +114,7 @@ func (ldb *LabelDB) RecordMetric(ctx context.Context, metric Metric) error {
 		if errors.Is(err, sql.ErrNoRows) {
 			res, err := tx.ExecContext(ctx, `INSERT INTO metrics (
 				namespace,
-				name,
+				metric_name,
 				region,
 				dimensions,
 				from_timestamp,
@@ -122,7 +122,7 @@ func (ldb *LabelDB) RecordMetric(ctx context.Context, metric Metric) error {
 				updated_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?);`,
 				metric.Namespace,
-				metric.Name,
+				metric.MetricName,
 				metric.Region,
 				d,
 				metric.FromTS.Unix(),
@@ -213,7 +213,7 @@ func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*
 		if ln == "namespace" {
 			namespace = lv
 		}
-		if ln == "namespace" || ln == "name" || ln == "region" {
+		if ln == "namespace" || ln == "metric_name" || ln == "region" {
 			ln = `m.` + ln
 		} else {
 			ln = `m.dimensions->>'$.` + ln + `'`
@@ -248,7 +248,7 @@ WHERE ` + strings.Join(whereClause, " AND ")
 		var fromTS int64
 		var toTS int64
 		var updatedAt int64
-		rows.Scan(&m.MetricID, &m.Namespace, &m.Name, &m.Region, &dim, &fromTS, &toTS, &updatedAt)
+		rows.Scan(&m.MetricID, &m.Namespace, &m.MetricName, &m.Region, &dim, &fromTS, &toTS, &updatedAt)
 		err = json.Unmarshal(dim, &m.Dimensions)
 		if err != nil {
 			return ms, err

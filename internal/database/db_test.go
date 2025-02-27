@@ -34,9 +34,9 @@ func TestInsertMetric(t *testing.T) {
 
 	namespace := "test_namespace"
 	err = db.RecordMetric(ctx, Metric{
-		Namespace: namespace,
-		Name:      "test_name",
-		Region:    "test_region",
+		Namespace:  namespace,
+		MetricName: "test_name",
+		Region:     "test_region",
 		Dimensions: []Dimension{
 			{
 				Name:  "dim1",
@@ -63,7 +63,7 @@ func TestInsertMetric(t *testing.T) {
 	var from int64
 	var to int64
 	var updatedAt int64
-	err = rows.Scan(&metric.MetricID, &metric.Namespace, &metric.Name, &metric.Region, &dim, &from, &to, &updatedAt)
+	err = rows.Scan(&metric.MetricID, &metric.Namespace, &metric.MetricName, &metric.Region, &dim, &from, &to, &updatedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestInsertMetric(t *testing.T) {
 	metric.UpdatedAt = time.Unix(updatedAt, 0).UTC()
 	if metric.MetricID != 1 ||
 		metric.Namespace != namespace ||
-		metric.Name != "test_name" ||
+		metric.MetricName != "test_name" ||
 		metric.Region != "test_region" ||
 		len(metric.Dimensions) != 1 ||
 		metric.Dimensions[0].Name != "dim1" ||
@@ -137,9 +137,9 @@ func TestUpdateMetric(t *testing.T) {
 
 	namespace := "test_namespace"
 	err = db.RecordMetric(ctx, Metric{
-		Namespace: namespace,
-		Name:      "test_name",
-		Region:    "test_region",
+		Namespace:  namespace,
+		MetricName: "test_name",
+		Region:     "test_region",
 		Dimensions: []Dimension{
 			{
 				Name:  "dim1",
@@ -153,9 +153,9 @@ func TestUpdateMetric(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = db.RecordMetric(ctx, Metric{
-		Namespace: namespace,
-		Name:      "test_name",
-		Region:    "test_region",
+		Namespace:  namespace,
+		MetricName: "test_name",
+		Region:     "test_region",
 		Dimensions: []Dimension{
 			{
 				Name:  "dim1",
@@ -182,7 +182,7 @@ func TestUpdateMetric(t *testing.T) {
 	var from int64
 	var to int64
 	var updatedAt int64
-	err = rows.Scan(&metric.MetricID, &metric.Namespace, &metric.Name, &metric.Region, &dim, &from, &to, &updatedAt)
+	err = rows.Scan(&metric.MetricID, &metric.Namespace, &metric.MetricName, &metric.Region, &dim, &from, &to, &updatedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func TestUpdateMetric(t *testing.T) {
 	metric.UpdatedAt = time.Unix(updatedAt, 0).UTC()
 	if metric.MetricID != 1 ||
 		metric.Namespace != namespace ||
-		metric.Name != "test_name" ||
+		metric.MetricName != "test_name" ||
 		metric.Region != "test_region" ||
 		len(metric.Dimensions) != 1 ||
 		metric.Dimensions[0].Name != "dim1" ||
@@ -256,9 +256,9 @@ func TestInsertInvalidMetric(t *testing.T) {
 
 	namespace := "test_namespace"
 	err = db.RecordMetric(ctx, Metric{
-		Namespace: namespace,
-		Name:      "test_name",
-		Region:    "test_region",
+		Namespace:  namespace,
+		MetricName: "test_name",
+		Region:     "test_region",
 		Dimensions: []Dimension{
 			{
 				Name:  "dim1",
@@ -272,9 +272,9 @@ func TestInsertInvalidMetric(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = db.RecordMetric(ctx, Metric{
-		Namespace: namespace,
-		Name:      "test_name",
-		Region:    "test_region",
+		Namespace:  namespace,
+		MetricName: "test_name",
+		Region:     "test_region",
 		Dimensions: []Dimension{
 			{
 				Name:  "dim1",
@@ -309,9 +309,9 @@ func TestQueryMetrics(t *testing.T) {
 
 	generateMetrics := func(ns, n, r, dn, dv string, f, t time.Time) Metric {
 		return Metric{
-			Namespace: ns,
-			Name:      n,
-			Region:    r,
+			Namespace:  ns,
+			MetricName: n,
+			Region:     r,
 			Dimensions: []Dimension{
 				{
 					Name:  dn,
@@ -350,7 +350,7 @@ func TestQueryMetrics(t *testing.T) {
 			to:   toTS,
 			lm: []*labels.Matcher{
 				labels.MustNewMatcher(labels.MatchEqual, "namespace", "test_namespace"),
-				labels.MustNewMatcher(labels.MatchEqual, "name", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
 				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
 				labels.MustNewMatcher(labels.MatchEqual, "dim1", "dim_value1"),
 			},
@@ -364,7 +364,7 @@ func TestQueryMetrics(t *testing.T) {
 			to:   toTS,
 			lm: []*labels.Matcher{
 				labels.MustNewMatcher(labels.MatchEqual, "namespace", "test_namespace2"),
-				labels.MustNewMatcher(labels.MatchEqual, "name", "test_name2"),
+				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name2"),
 				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region2"),
 				labels.MustNewMatcher(labels.MatchEqual, "dim2", "dim_value2"),
 			},
@@ -378,7 +378,7 @@ func TestQueryMetrics(t *testing.T) {
 			to:   toTS2,
 			lm: []*labels.Matcher{
 				labels.MustNewMatcher(labels.MatchEqual, "namespace", "test_namespace"),
-				labels.MustNewMatcher(labels.MatchEqual, "name", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
 				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
 			},
 			want: []Metric{
@@ -422,9 +422,9 @@ func BenchmarkInsert10000Metrics(b *testing.B) {
 			}
 			toTS := fromTS.Add(time.Duration(rand.Intn(60*60)) * time.Second)
 			err = db.RecordMetric(ctx, Metric{
-				Namespace: "test_namespace",
-				Name:      "test_name",
-				Region:    "test_region",
+				Namespace:  "test_namespace",
+				MetricName: "test_name",
+				Region:     "test_region",
 				Dimensions: []Dimension{
 					{
 						Name:  "dim1",
