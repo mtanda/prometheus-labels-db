@@ -1,4 +1,4 @@
-module mtanda/prometheus-labels-db
+module github.com/mtanda/prometheus-labels-db
 
 go 1.23.4
 
