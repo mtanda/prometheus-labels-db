@@ -13,6 +13,8 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	_ "github.com/mattn/go-sqlite3"
+
+	_ "github.com/mtanda/prometheus-labels-db/internal/database/regexp"
 	"github.com/prometheus/prometheus/model/labels"
 )
 
@@ -216,7 +218,7 @@ func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*
 		if ln == "namespace" || ln == "metric_name" || ln == "region" {
 			ln = `m.` + ln
 		} else {
-			ln = `m.dimensions->>'$.` + ln + `'`
+			ln = `IFNULL(m.dimensions->>'$.` + ln + `', "")`
 		}
 		switch m.Type {
 		case labels.MatchEqual:
@@ -224,6 +226,12 @@ func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*
 			args = append(args, lv)
 		case labels.MatchNotEqual:
 			whereClause = append(whereClause, ln+" != ?")
+			args = append(args, lv)
+		case labels.MatchRegexp:
+			whereClause = append(whereClause, ln+" REGEXP ?")
+			args = append(args, lv)
+		case labels.MatchNotRegexp:
+			whereClause = append(whereClause, ln+" NOT REGEXP ?")
 			args = append(args, lv)
 		}
 	}

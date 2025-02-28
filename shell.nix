@@ -7,5 +7,7 @@ pkgs.mkShell {
     pkgs.gopls
     pkgs.gotests
     pkgs.delve
+    pkgs.pcre
+    pkgs.sqlite
   ];
 }

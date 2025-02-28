@@ -385,6 +385,20 @@ func TestQueryMetrics(t *testing.T) {
 				generateMetrics("test_namespace", "test_name", "test_region", "dim3", "dim_value3", fromTS2, toTS2),
 			},
 		},
+		{
+			name: "match regexp1",
+			from: fromTS,
+			to:   toTS,
+			lm: []*labels.Matcher{
+				labels.MustNewMatcher(labels.MatchEqual, "namespace", "test_namespace"),
+				labels.MustNewMatcher(labels.MatchRegexp, "metric_name", "^test_.*$"),
+				labels.MustNewMatcher(labels.MatchRegexp, "region", "^test_.*$"),
+				labels.MustNewMatcher(labels.MatchRegexp, "dim1", "^dim_value.*$"),
+			},
+			want: []Metric{
+				generateMetrics("test_namespace", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
