@@ -1,0 +1,98 @@
+package recorder
+
+import (
+	"context"
+	"log/slog"
+	"sync"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
+	"github.com/mtanda/prometheus-labels-db/internal/model"
+)
+
+var scrapeInterval = 10 * time.Minute
+
+type CloudWatchAPI interface {
+	cloudwatch.ListMetricsAPIClient
+}
+
+type CloudWatchScraper struct {
+	cwClient   CloudWatchAPI
+	region     string
+	namespaces []string
+	metricsCh  chan model.Metric
+	cancel     context.CancelFunc
+}
+
+func NewCloudWatchScraper(client CloudWatchAPI, region string, ns []string, ch chan model.Metric) *CloudWatchScraper {
+	return &CloudWatchScraper{
+		cwClient:   client,
+		region:     region,
+		namespaces: ns,
+		metricsCh:  ch,
+	}
+}
+
+func (c *CloudWatchScraper) Run(wg *sync.WaitGroup) {
+	var ctx context.Context
+	ctx, c.cancel = context.WithCancel(context.Background())
+	wg.Add(1)
+	go func() {
+		ticker := time.NewTicker(scrapeInterval)
+		defer ticker.Stop()
+		defer wg.Done()
+		for {
+			select {
+			case <-ticker.C:
+				for _, ns := range c.namespaces {
+					err := c.scrape(ctx, ns)
+					if err != nil {
+						slog.Error("failed to scrape metrics: %s, %v\n", ns, err)
+					}
+				}
+			case <-ctx.Done():
+				close(c.metricsCh)
+				return
+			}
+		}
+	}()
+}
+
+func (c *CloudWatchScraper) scrape(ctx context.Context, ns string) error {
+	now := time.Now().UTC()
+
+	paginator := cloudwatch.NewListMetricsPaginator(c.cwClient, &cloudwatch.ListMetricsInput{
+		Namespace:      aws.String(ns),
+		RecentlyActive: "PT3H",
+	})
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			return err
+		}
+		for _, m := range output.Metrics {
+			dim := make([]model.Dimension, 0, len(m.Dimensions))
+			for _, d := range m.Dimensions {
+				dim = append(dim, model.Dimension{
+					Name:  *d.Name,
+					Value: *d.Value,
+				})
+			}
+			c.metricsCh <- model.Metric{
+				Namespace:  *m.Namespace,
+				MetricName: *m.MetricName,
+				Region:     c.region,
+				Dimensions: dim,
+				FromTS:     now.Add(-(60*3 + 50) * time.Minute),
+				ToTS:       now,
+				UpdatedAt:  now,
+			}
+		}
+	}
+	return nil
+}
+
+func (c *CloudWatchScraper) Stop() {
+	c.cancel()
+}
