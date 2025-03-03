@@ -11,6 +11,7 @@ import (
 	"math/rand"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/mtanda/prometheus-labels-db/internal/model"
 	"github.com/prometheus/prometheus/model/labels"
 )
 
@@ -33,11 +34,11 @@ func TestInsertMetric(t *testing.T) {
 	}
 
 	namespace := "test_namespace"
-	err = db.RecordMetric(ctx, Metric{
+	err = db.RecordMetric(ctx, model.Metric{
 		Namespace:  namespace,
 		MetricName: "test_name",
 		Region:     "test_region",
-		Dimensions: []Dimension{
+		Dimensions: []model.Dimension{
 			{
 				Name:  "dim1",
 				Value: "dim_value1",
@@ -58,7 +59,7 @@ func TestInsertMetric(t *testing.T) {
 	}
 	rows.Next()
 
-	var metric Metric
+	var metric model.Metric
 	var dim []byte
 	var from int64
 	var to int64
@@ -99,7 +100,7 @@ func TestInsertMetric(t *testing.T) {
 	}
 	rows.Next()
 
-	var lifetime MetricLifetime
+	var lifetime model.MetricLifetime
 	err = rows.Scan(&lifetime.MetricID, &from, &to)
 	if err != nil {
 		t.Fatal(err)
@@ -136,11 +137,11 @@ func TestUpdateMetric(t *testing.T) {
 	}
 
 	namespace := "test_namespace"
-	err = db.RecordMetric(ctx, Metric{
+	err = db.RecordMetric(ctx, model.Metric{
 		Namespace:  namespace,
 		MetricName: "test_name",
 		Region:     "test_region",
-		Dimensions: []Dimension{
+		Dimensions: []model.Dimension{
 			{
 				Name:  "dim1",
 				Value: "dim_value1",
@@ -152,11 +153,11 @@ func TestUpdateMetric(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = db.RecordMetric(ctx, Metric{
+	err = db.RecordMetric(ctx, model.Metric{
 		Namespace:  namespace,
 		MetricName: "test_name",
 		Region:     "test_region",
-		Dimensions: []Dimension{
+		Dimensions: []model.Dimension{
 			{
 				Name:  "dim1",
 				Value: "dim_value1",
@@ -177,7 +178,7 @@ func TestUpdateMetric(t *testing.T) {
 	}
 	rows.Next()
 
-	var metric Metric
+	var metric model.Metric
 	var dim []byte
 	var from int64
 	var to int64
@@ -218,7 +219,7 @@ func TestUpdateMetric(t *testing.T) {
 	}
 	rows.Next()
 
-	var lifetime MetricLifetime
+	var lifetime model.MetricLifetime
 	err = rows.Scan(&lifetime.MetricID, &from, &to)
 	if err != nil {
 		t.Fatal(err)
@@ -255,11 +256,11 @@ func TestInsertInvalidMetric(t *testing.T) {
 	}
 
 	namespace := "test_namespace"
-	err = db.RecordMetric(ctx, Metric{
+	err = db.RecordMetric(ctx, model.Metric{
 		Namespace:  namespace,
 		MetricName: "test_name",
 		Region:     "test_region",
-		Dimensions: []Dimension{
+		Dimensions: []model.Dimension{
 			{
 				Name:  "dim1",
 				Value: "dim_value1",
@@ -271,11 +272,11 @@ func TestInsertInvalidMetric(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = db.RecordMetric(ctx, Metric{
+	err = db.RecordMetric(ctx, model.Metric{
 		Namespace:  namespace,
 		MetricName: "test_name",
 		Region:     "test_region",
-		Dimensions: []Dimension{
+		Dimensions: []model.Dimension{
 			{
 				Name:  "dim1",
 				Value: "dim_value1",
@@ -307,12 +308,12 @@ func TestQueryMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	generateMetrics := func(ns, n, r, dn, dv string, f, t time.Time) Metric {
-		return Metric{
+	generateMetrics := func(ns, n, r, dn, dv string, f, t time.Time) model.Metric {
+		return model.Metric{
 			Namespace:  ns,
 			MetricName: n,
 			Region:     r,
-			Dimensions: []Dimension{
+			Dimensions: []model.Dimension{
 				{
 					Name:  dn,
 					Value: dv,
@@ -325,7 +326,7 @@ func TestQueryMetrics(t *testing.T) {
 
 	fromTS2 := fromTS.Add(1 * 24 * time.Hour)
 	toTS2 := toTS.Add(1 * 24 * time.Hour)
-	metrics := []Metric{
+	metrics := []model.Metric{
 		generateMetrics("test_namespace", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
 		generateMetrics("test_namespace2", "test_name2", "test_region2", "dim2", "dim_value2", fromTS, toTS),
 		generateMetrics("test_namespace", "test_name", "test_region", "dim3", "dim_value3", fromTS2, toTS2),
@@ -342,7 +343,7 @@ func TestQueryMetrics(t *testing.T) {
 		from time.Time
 		to   time.Time
 		lm   []*labels.Matcher
-		want []Metric
+		want []model.Metric
 	}{
 		{
 			name: "match1",
@@ -354,7 +355,7 @@ func TestQueryMetrics(t *testing.T) {
 				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
 				labels.MustNewMatcher(labels.MatchEqual, "dim1", "dim_value1"),
 			},
-			want: []Metric{
+			want: []model.Metric{
 				generateMetrics("test_namespace", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
 			},
 		},
@@ -368,7 +369,7 @@ func TestQueryMetrics(t *testing.T) {
 				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region2"),
 				labels.MustNewMatcher(labels.MatchEqual, "dim2", "dim_value2"),
 			},
-			want: []Metric{
+			want: []model.Metric{
 				generateMetrics("test_namespace2", "test_name2", "test_region2", "dim2", "dim_value2", fromTS, toTS),
 			},
 		},
@@ -381,7 +382,7 @@ func TestQueryMetrics(t *testing.T) {
 				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
 				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
 			},
-			want: []Metric{
+			want: []model.Metric{
 				generateMetrics("test_namespace", "test_name", "test_region", "dim3", "dim_value3", fromTS2, toTS2),
 			},
 		},
@@ -395,7 +396,7 @@ func TestQueryMetrics(t *testing.T) {
 				labels.MustNewMatcher(labels.MatchRegexp, "region", "^test_.*$"),
 				labels.MustNewMatcher(labels.MatchRegexp, "dim1", "^dim_value.*$"),
 			},
-			want: []Metric{
+			want: []model.Metric{
 				generateMetrics("test_namespace", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
 			},
 		},
@@ -435,11 +436,11 @@ func BenchmarkInsert10000Metrics(b *testing.B) {
 				fromTS = fromTS.Add(-365 * 24 * 60 * 60 * time.Second)
 			}
 			toTS := fromTS.Add(time.Duration(rand.Intn(60*60)) * time.Second)
-			err = db.RecordMetric(ctx, Metric{
+			err = db.RecordMetric(ctx, model.Metric{
 				Namespace:  "test_namespace",
 				MetricName: "test_name",
 				Region:     "test_region",
-				Dimensions: []Dimension{
+				Dimensions: []model.Dimension{
 					{
 						Name:  "dim1",
 						Value: fmt.Sprintf("dim_value%d", j),

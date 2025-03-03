@@ -15,6 +15,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	_ "github.com/mtanda/prometheus-labels-db/internal/database/regexp"
+	"github.com/mtanda/prometheus-labels-db/internal/model"
 	"github.com/prometheus/prometheus/model/labels"
 )
 
@@ -84,7 +85,7 @@ func (ldb *LabelDB) init(ctx context.Context, t time.Time, namespace string) err
 	return nil
 }
 
-func (ldb *LabelDB) RecordMetric(ctx context.Context, metric Metric) error {
+func (ldb *LabelDB) RecordMetric(ctx context.Context, metric model.Metric) error {
 	d, err := json.Marshal(metric.Dimensions)
 	if err != nil {
 		return err
@@ -196,8 +197,8 @@ func (ldb *LabelDB) RecordMetric(ctx context.Context, metric Metric) error {
 	return err
 }
 
-func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*labels.Matcher) ([]Metric, error) {
-	ms := []Metric{}
+func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*labels.Matcher) ([]model.Metric, error) {
+	ms := []model.Metric{}
 	var whereClause []string
 	var args []interface{}
 
@@ -251,7 +252,7 @@ WHERE ` + strings.Join(whereClause, " AND ")
 	defer rows.Close()
 
 	for rows.Next() {
-		var m Metric
+		var m model.Metric
 		var dim []byte
 		var fromTS int64
 		var toTS int64
