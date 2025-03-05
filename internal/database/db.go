@@ -132,28 +132,31 @@ func (ldb *LabelDB) recordMetricToPartition(ctx context.Context, tx *sql.Tx, met
 
 	// metrics
 	s := getTableSuffix(tr.From)
-	row := ldb.db.QueryRowContext(ctx, `SELECT metric_id, from_timestamp, to_timestamp FROM metrics`+s+`
-			WHERE
-				namespace = ? AND
-				metric_name = ? AND
-				region = ? AND
-				dimensions = ?
-			`, metric.Namespace, metric.MetricName, metric.Region, d)
+	row := ldb.db.QueryRowContext(ctx, `
+		SELECT metric_id, from_timestamp, to_timestamp FROM metrics`+s+`
+		WHERE
+			namespace = ? AND
+			metric_name = ? AND
+			region = ? AND
+			dimensions = ?
+	`, metric.Namespace, metric.MetricName, metric.Region, d)
 
 	var metricID int64
 	var fromTS int64
 	var toTS int64
 	err = row.Scan(&metricID, &fromTS, &toTS)
 	if errors.Is(err, sql.ErrNoRows) {
-		res, err := tx.ExecContext(ctx, `INSERT INTO metrics`+s+` (
-					namespace,
-					metric_name,
-					region,
-					dimensions,
-					from_timestamp,
-					to_timestamp,
-					updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?);`,
+		res, err := tx.ExecContext(ctx, `
+			INSERT INTO metrics`+s+` (
+				namespace,
+				metric_name,
+				region,
+				dimensions,
+				from_timestamp,
+				to_timestamp,
+				updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?);
+			`,
 			metric.Namespace,
 			metric.MetricName,
 			metric.Region,
@@ -171,10 +174,12 @@ func (ldb *LabelDB) recordMetricToPartition(ctx context.Context, tx *sql.Tx, met
 			return err
 		}
 	} else if err == nil && metricID > 0 {
-		_, err := tx.ExecContext(ctx, `UPDATE metrics`+s+` SET
+		_, err := tx.ExecContext(ctx, `
+			UPDATE metrics`+s+` SET
 				to_timestamp = ?,
 				updated_at = ?
-			WHERE metric_id = ?;`,
+			WHERE metric_id = ?;
+			`,
 			tr.To.Unix(),
 			time.Now().UTC().Unix(),
 			metricID,
@@ -188,11 +193,13 @@ func (ldb *LabelDB) recordMetricToPartition(ctx context.Context, tx *sql.Tx, met
 
 	// metrics_lifetime
 	ls := getLifetimeTableSuffix(tr.From, metric.Namespace)
-	res, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO metrics_lifetime`+ls+`(
-				metric_id,
-				from_timestamp,
-				to_timestamp
-			) VALUES (?, ?, ?);`,
+	res, err := tx.ExecContext(ctx, `
+		INSERT OR IGNORE INTO metrics_lifetime`+ls+`(
+			metric_id,
+			from_timestamp,
+			to_timestamp
+		) VALUES (?, ?, ?);
+		`,
 		metricID,
 		tr.From.Unix(),
 		tr.To.Unix(),
@@ -205,9 +212,11 @@ func (ldb *LabelDB) recordMetricToPartition(ctx context.Context, tx *sql.Tx, met
 		return err
 	}
 	if rowsAffected == 0 {
-		_, err = tx.ExecContext(ctx, `UPDATE metrics_lifetime`+ls+` SET
-					to_timestamp = ?
-				WHERE metric_id = ?;`,
+		_, err = tx.ExecContext(ctx, `
+			UPDATE metrics_lifetime`+ls+` SET
+				to_timestamp = ?
+			WHERE metric_id = ?;
+			`,
 			tr.To.Unix(),
 			metricID,
 		)
