@@ -309,6 +309,7 @@ func getPartition(t time.Time) timeRange {
 
 func getLifetimeTableSuffix(t time.Time, namespace string) string {
 	p := getPartition(t)
+	namespace = strings.ReplaceAll(namespace, "/", "_")
 	return "_" + p.From.Format("20060102") + "_" + p.To.Format("20060102") + "_" + namespace
 }
 
