@@ -46,7 +46,7 @@ func TestRecord(t *testing.T) {
 			UpdatedAt: now,
 		}
 	}
-	recorder.Stop()
+	close(metricsCh)
 	wg.Wait()
 
 	result, err := ldb.QueryMetrics(ctx, from, to, []*labels.Matcher{

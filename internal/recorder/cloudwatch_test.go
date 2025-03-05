@@ -43,6 +43,7 @@ func TestScrape(t *testing.T) {
 	time.Sleep(15 * time.Second)
 	recorder.Stop()
 	wg.Wait()
+	close(metricsCh)
 	metrics := make([]model.Metric, 0, 10)
 	for metric := range metricsCh {
 		metrics = append(metrics, metric)

@@ -52,7 +52,6 @@ func (c *CloudWatchScraper) Run(wg *sync.WaitGroup) {
 					}
 				}
 			case <-ctx.Done():
-				close(c.metricsCh)
 				return
 			}
 		}

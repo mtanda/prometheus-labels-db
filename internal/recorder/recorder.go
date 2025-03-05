@@ -42,7 +42,3 @@ func (r *Recorder) Run(wg *sync.WaitGroup) {
 		wg.Done()
 	}()
 }
-
-func (r *Recorder) Stop() {
-	close(r.metricsCh)
-}
