@@ -91,15 +91,11 @@ func (ldb *LabelDB) init(ctx context.Context, t time.Time, namespace string) err
 }
 
 func (ldb *LabelDB) RecordMetric(ctx context.Context, metric model.Metric) error {
-	d, err := json.Marshal(metric.Dimensions)
-	if err != nil {
-		return err
-	}
 	if metric.ToTS.Before(metric.FromTS) {
 		return errors.New("from timestamp is greater than to timestamp")
 	}
 
-	err = withTx(ctx, ldb.db, func(tx *sql.Tx) error {
+	err := withTx(ctx, ldb.db, func(tx *sql.Tx) error {
 		trs := getLifetimeRanges(metric.FromTS, metric.ToTS)
 		for _, tr := range trs {
 			err := ldb.init(ctx, tr.From, metric.Namespace)
@@ -116,9 +112,27 @@ func (ldb *LabelDB) RecordMetric(ctx context.Context, metric model.Metric) error
 	err = withTx(ctx, ldb.db, func(tx *sql.Tx) error {
 		trs := getLifetimeRanges(metric.FromTS, metric.ToTS)
 		for _, tr := range trs {
-			// metrics
-			s := getTableSuffix(tr.From)
-			row := ldb.db.QueryRowContext(ctx, `SELECT metric_id, from_timestamp, to_timestamp FROM metrics`+s+`
+			err = ldb.recordMetricToPartition(ctx, tx, metric, tr)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	return err
+}
+
+func (ldb *LabelDB) recordMetricToPartition(ctx context.Context, tx *sql.Tx, metric model.Metric, tr timeRange) error {
+	d, err := json.Marshal(metric.Dimensions)
+	if err != nil {
+		return err
+	}
+
+	// metrics
+	s := getTableSuffix(tr.From)
+	row := ldb.db.QueryRowContext(ctx, `SELECT metric_id, from_timestamp, to_timestamp FROM metrics`+s+`
 			WHERE
 				namespace = ? AND
 				metric_name = ? AND
@@ -126,12 +140,12 @@ func (ldb *LabelDB) RecordMetric(ctx context.Context, metric model.Metric) error
 				dimensions = ?
 			`, metric.Namespace, metric.MetricName, metric.Region, d)
 
-			var metricID int64
-			var fromTS int64
-			var toTS int64
-			err := row.Scan(&metricID, &fromTS, &toTS)
-			if errors.Is(err, sql.ErrNoRows) {
-				res, err := tx.ExecContext(ctx, `INSERT INTO metrics`+s+` (
+	var metricID int64
+	var fromTS int64
+	var toTS int64
+	err = row.Scan(&metricID, &fromTS, &toTS)
+	if errors.Is(err, sql.ErrNoRows) {
+		res, err := tx.ExecContext(ctx, `INSERT INTO metrics`+s+` (
 					namespace,
 					metric_name,
 					region,
@@ -140,73 +154,69 @@ func (ldb *LabelDB) RecordMetric(ctx context.Context, metric model.Metric) error
 					to_timestamp,
 					updated_at
 				) VALUES (?, ?, ?, ?, ?, ?, ?);`,
-					metric.Namespace,
-					metric.MetricName,
-					metric.Region,
-					d,
-					tr.From.Unix(),
-					tr.To.Unix(),
-					time.Now().UTC().Unix(),
-				)
-				if err != nil {
-					return err
-				}
+			metric.Namespace,
+			metric.MetricName,
+			metric.Region,
+			d,
+			tr.From.Unix(),
+			tr.To.Unix(),
+			time.Now().UTC().Unix(),
+		)
+		if err != nil {
+			return err
+		}
 
-				metricID, err = res.LastInsertId()
-				if err != nil {
-					return err
-				}
-			} else if err == nil && metricID > 0 {
-				_, err := tx.ExecContext(ctx, `UPDATE metrics`+s+` SET
+		metricID, err = res.LastInsertId()
+		if err != nil {
+			return err
+		}
+	} else if err == nil && metricID > 0 {
+		_, err := tx.ExecContext(ctx, `UPDATE metrics`+s+` SET
 				to_timestamp = ?,
 				updated_at = ?
 			WHERE metric_id = ?;`,
-					tr.To.Unix(),
-					time.Now().UTC().Unix(),
-					metricID,
-				)
-				if err != nil {
-					return err
-				}
-			} else {
-				return err
-			}
+			tr.To.Unix(),
+			time.Now().UTC().Unix(),
+			metricID,
+		)
+		if err != nil {
+			return err
+		}
+	} else {
+		return err
+	}
 
-			// metrics_lifetime
-			ls := getLifetimeTableSuffix(tr.From, metric.Namespace)
-			res, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO metrics_lifetime`+ls+`(
+	// metrics_lifetime
+	ls := getLifetimeTableSuffix(tr.From, metric.Namespace)
+	res, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO metrics_lifetime`+ls+`(
 				metric_id,
 				from_timestamp,
 				to_timestamp
 			) VALUES (?, ?, ?);`,
-				metricID,
-				tr.From.Unix(),
-				tr.To.Unix(),
-			)
-			if err != nil {
-				return err
-			}
-			rowsAffected, err := res.RowsAffected()
-			if err != nil {
-				return err
-			}
-			if rowsAffected == 0 {
-				_, err = tx.ExecContext(ctx, `UPDATE metrics_lifetime`+ls+` SET
+		metricID,
+		tr.From.Unix(),
+		tr.To.Unix(),
+	)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		_, err = tx.ExecContext(ctx, `UPDATE metrics_lifetime`+ls+` SET
 					to_timestamp = ?
 				WHERE metric_id = ?;`,
-					tr.To.Unix(),
-					metricID,
-				)
-				if err != nil {
-					return err
-				}
-			}
+			tr.To.Unix(),
+			metricID,
+		)
+		if err != nil {
+			return err
 		}
+	}
 
-		return nil
-	})
-
-	return err
+	return nil
 }
 
 func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*labels.Matcher) ([]model.Metric, error) {
