@@ -234,16 +234,63 @@ func (ldb *LabelDB) recordMetricToPartition(ctx context.Context, tx *sql.Tx, met
 
 func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*labels.Matcher) ([]model.Metric, error) {
 	ms := []model.Metric{}
-	var whereClause []string
-	var args []interface{}
-
-	// set time range
-	whereClause = append(whereClause, "ml.from_timestamp <= ?")
-	args = append(args, from.Unix())
-	whereClause = append(whereClause, "ml.to_timestamp >= ?")
-	args = append(args, to.Unix())
 
 	// convert prometheus label matchers to sql where clause
+	labelCondition, labelArgs, namespace, err := buildLabelConditions(lm)
+	if err != nil {
+		return ms, err
+	}
+
+	mm := make(map[string]*model.Metric)
+	trs := getLifetimeRanges(from, to)
+	for _, tr := range trs {
+		timeCondition, timeArgs := buildTimeConditions(tr)
+
+		s := getTableSuffix(tr.From)
+		ls := getLifetimeTableSuffix(tr.From, namespace)
+		q := `SELECT m.*
+FROM metrics_lifetime` + ls + ` ml
+JOIN metrics` + s + ` m ON ml.metric_id = m.metric_id
+WHERE ` + strings.Join(append(timeCondition, labelCondition...), " AND ")
+		rows, err := ldb.db.QueryContext(ctx, q, append(timeArgs, labelArgs...)...)
+		if err != nil {
+			return ms, err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var m model.Metric
+			var dim []byte
+			var fromTS int64
+			var toTS int64
+			var updatedAt int64
+			rows.Scan(&m.MetricID, &m.Namespace, &m.MetricName, &m.Region, &dim, &fromTS, &toTS, &updatedAt)
+			err = json.Unmarshal(dim, &m.Dimensions)
+			if err != nil {
+				return ms, err
+			}
+			m.FromTS = time.Unix(fromTS, 0).UTC()
+			m.ToTS = time.Unix(toTS, 0).UTC()
+			m.UpdatedAt = time.Unix(updatedAt, 0).UTC()
+			k := m.UniqueKey()
+			if _, ok := mm[k]; ok {
+				mm[k].FromTS = time.Unix(min(m.FromTS.Unix(), mm[k].FromTS.Unix()), 0).UTC()
+				mm[k].ToTS = time.Unix(max(m.ToTS.Unix(), mm[k].ToTS.Unix()), 0).UTC()
+			} else {
+				mm[k] = &m
+			}
+		}
+	}
+	for _, m := range mm {
+		ms = append(ms, *m)
+	}
+
+	return ms, nil
+}
+
+func buildLabelConditions(lm []*labels.Matcher) ([]string, []interface{}, string, error) {
+	var labelCondition []string
+	var labelArgs []interface{}
 	var namespace string
 	for _, m := range lm {
 		ln := m.Name
@@ -258,53 +305,33 @@ func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*
 		}
 		switch m.Type {
 		case labels.MatchEqual:
-			whereClause = append(whereClause, ln+" = ?")
-			args = append(args, lv)
+			labelCondition = append(labelCondition, ln+" = ?")
+			labelArgs = append(labelArgs, lv)
 		case labels.MatchNotEqual:
-			whereClause = append(whereClause, ln+" != ?")
-			args = append(args, lv)
+			labelCondition = append(labelCondition, ln+" != ?")
+			labelArgs = append(labelArgs, lv)
 		case labels.MatchRegexp:
-			whereClause = append(whereClause, ln+" REGEXP ?")
-			args = append(args, lv)
+			labelCondition = append(labelCondition, ln+" REGEXP ?")
+			labelArgs = append(labelArgs, lv)
 		case labels.MatchNotRegexp:
-			whereClause = append(whereClause, ln+" NOT REGEXP ?")
-			args = append(args, lv)
+			labelCondition = append(labelCondition, ln+" NOT REGEXP ?")
+			labelArgs = append(labelArgs, lv)
 		}
 	}
 	if namespace == "" {
-		return ms, errors.New("namespace label matcher is required")
+		return nil, nil, "", errors.New("namespace label matcher is required")
 	}
+	return labelCondition, labelArgs, namespace, nil
+}
 
-	s := getTableSuffix(from)
-	ls := getLifetimeTableSuffix(from, namespace)
-	q := `SELECT m.*
-FROM metrics_lifetime` + ls + ` ml
-JOIN metrics` + s + ` m ON ml.metric_id = m.metric_id
-WHERE ` + strings.Join(whereClause, " AND ")
-	rows, err := ldb.db.QueryContext(ctx, q, args...)
-	if err != nil {
-		return ms, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var m model.Metric
-		var dim []byte
-		var fromTS int64
-		var toTS int64
-		var updatedAt int64
-		rows.Scan(&m.MetricID, &m.Namespace, &m.MetricName, &m.Region, &dim, &fromTS, &toTS, &updatedAt)
-		err = json.Unmarshal(dim, &m.Dimensions)
-		if err != nil {
-			return ms, err
-		}
-		m.FromTS = time.Unix(fromTS, 0).UTC()
-		m.ToTS = time.Unix(toTS, 0).UTC()
-		m.UpdatedAt = time.Unix(updatedAt, 0).UTC()
-		ms = append(ms, m)
-	}
-
-	return ms, nil
+func buildTimeConditions(tr timeRange) ([]string, []interface{}) {
+	var timeCondition []string
+	var timeArgs []interface{}
+	timeCondition = append(timeCondition, "ml.from_timestamp <= ?")
+	timeArgs = append(timeArgs, tr.From.Unix())
+	timeCondition = append(timeCondition, "ml.to_timestamp >= ?")
+	timeArgs = append(timeArgs, tr.To.Unix())
+	return timeCondition, timeArgs
 }
 
 func withTx(ctx context.Context, db *sql.DB, f func(tx *sql.Tx) error) error {

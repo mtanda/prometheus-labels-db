@@ -326,10 +326,13 @@ func TestQueryMetrics(t *testing.T) {
 
 	fromTS2 := fromTS.Add(1 * 24 * time.Hour)
 	toTS2 := toTS.Add(1 * 24 * time.Hour)
+	fromTS3 := fromTS.Add(-PartitionInterval * 6)
+	toTS3 := fromTS3.Add(PartitionInterval * 3)
 	metrics := []model.Metric{
 		generateMetrics("test_namespace", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
 		generateMetrics("test_namespace2", "test_name2", "test_region2", "dim2", "dim_value2", fromTS, toTS),
 		generateMetrics("test_namespace", "test_name", "test_region", "dim3", "dim_value3", fromTS2, toTS2),
+		generateMetrics("test_namespace", "test_name", "test_region", "dim4", "dim_value4", fromTS3, toTS3),
 	}
 	for _, m := range metrics {
 		err = db.RecordMetric(ctx, m)
@@ -398,6 +401,20 @@ func TestQueryMetrics(t *testing.T) {
 			},
 			want: []model.Metric{
 				generateMetrics("test_namespace", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
+			},
+		},
+		{
+			name: "match long lifetime",
+			from: fromTS3,
+			to:   toTS3,
+			lm: []*labels.Matcher{
+				labels.MustNewMatcher(labels.MatchEqual, "namespace", "test_namespace"),
+				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
+				labels.MustNewMatcher(labels.MatchEqual, "dim4", "dim_value4"),
+			},
+			want: []model.Metric{
+				generateMetrics("test_namespace", "test_name", "test_region", "dim4", "dim_value4", fromTS3, toTS3),
 			},
 		},
 	}

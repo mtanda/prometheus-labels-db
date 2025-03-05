@@ -79,6 +79,14 @@ func (a Metric) Equal(b Metric) bool {
 	return true
 }
 
+func (a Metric) UniqueKey() string {
+	key := a.Namespace + a.MetricName + a.Region
+	for _, d := range a.Dimensions {
+		key += d.Name + d.Value
+	}
+	return key
+}
+
 type MetricLifetime struct {
 	MetricID int64
 	FromTS   time.Time
