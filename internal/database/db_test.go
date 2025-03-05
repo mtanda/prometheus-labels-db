@@ -53,7 +53,7 @@ func TestInsertMetric(t *testing.T) {
 
 	// check metrics table
 	var rows *sql.Rows
-	rows, err = db.db.QueryContext(ctx, "SELECT * FROM metrics")
+	rows, err = db.db.QueryContext(ctx, "SELECT * FROM metrics_20241111_20250202")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestUpdateMetric(t *testing.T) {
 
 	// check metrics table
 	var rows *sql.Rows
-	rows, err = db.db.QueryContext(ctx, "SELECT * FROM metrics")
+	rows, err = db.db.QueryContext(ctx, "SELECT * FROM metrics_20241111_20250202")
 	if err != nil {
 		t.Fatal(err)
 	}

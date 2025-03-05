@@ -53,18 +53,23 @@ func (ldb *LabelDB) Close() error {
 }
 
 func (ldb *LabelDB) init(ctx context.Context, t time.Time, namespace string) error {
-	suffix := getLifetimeTableSuffix(t, namespace)
-	_, found := ldb.cache.Get(suffix)
+	suffix := getTableSuffix(t)
+	lsuffix := getLifetimeTableSuffix(t, namespace)
+	_, found := ldb.cache.Get(lsuffix)
 	if found {
 		return nil
 	}
 
 	data := struct {
+		MetricsPreSuffix         string
+		MetricsCurSuffix         string
 		MetricsLifetimePreSuffix string
 		MetricsLifetimeCurSuffix string
 	}{
+		MetricsPreSuffix:         getTableSuffix(t.Add(-1 * PartitionInterval)),
+		MetricsCurSuffix:         suffix,
 		MetricsLifetimePreSuffix: getLifetimeTableSuffix(t.Add(-1*PartitionInterval), namespace),
-		MetricsLifetimeCurSuffix: suffix,
+		MetricsLifetimeCurSuffix: lsuffix,
 	}
 	tmpl, err := template.New("").Parse(createTableStmt)
 	if err != nil {
@@ -80,7 +85,7 @@ func (ldb *LabelDB) init(ctx context.Context, t time.Time, namespace string) err
 		return err
 	}
 
-	ldb.cache.Add(suffix, struct{}{})
+	ldb.cache.Add(lsuffix, struct{}{})
 
 	return nil
 }
@@ -95,74 +100,81 @@ func (ldb *LabelDB) RecordMetric(ctx context.Context, metric model.Metric) error
 	}
 
 	err = withTx(ctx, ldb.db, func(tx *sql.Tx) error {
-		return ldb.init(ctx, metric.FromTS, metric.Namespace)
+		trs := getLifetimeRanges(metric.FromTS, metric.ToTS)
+		for _, tr := range trs {
+			err := ldb.init(ctx, tr.From, metric.Namespace)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return err
 	}
 
 	err = withTx(ctx, ldb.db, func(tx *sql.Tx) error {
-		row := ldb.db.QueryRowContext(ctx, `SELECT metric_id, from_timestamp, to_timestamp FROM metrics
-		WHERE
-			namespace = ? AND
-			metric_name = ? AND
-			region = ? AND
-			dimensions = ?
-		`, metric.Namespace, metric.MetricName, metric.Region, d)
+		trs := getLifetimeRanges(metric.FromTS, metric.ToTS)
+		for _, tr := range trs {
+			// metrics
+			s := getTableSuffix(tr.From)
+			row := ldb.db.QueryRowContext(ctx, `SELECT metric_id, from_timestamp, to_timestamp FROM metrics`+s+`
+			WHERE
+				namespace = ? AND
+				metric_name = ? AND
+				region = ? AND
+				dimensions = ?
+			`, metric.Namespace, metric.MetricName, metric.Region, d)
 
-		var metricID int64
-		var fromTS int64
-		var toTS int64
-		err := row.Scan(&metricID, &fromTS, &toTS)
-		if errors.Is(err, sql.ErrNoRows) {
-			res, err := tx.ExecContext(ctx, `INSERT INTO metrics (
-				namespace,
-				metric_name,
-				region,
-				dimensions,
-				from_timestamp,
-				to_timestamp,
-				updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?);`,
-				metric.Namespace,
-				metric.MetricName,
-				metric.Region,
-				d,
-				metric.FromTS.Unix(),
-				metric.ToTS.Unix(),
-				time.Now().UTC().Unix(),
-			)
-			if err != nil {
-				return err
-			}
+			var metricID int64
+			var fromTS int64
+			var toTS int64
+			err := row.Scan(&metricID, &fromTS, &toTS)
+			if errors.Is(err, sql.ErrNoRows) {
+				res, err := tx.ExecContext(ctx, `INSERT INTO metrics`+s+` (
+					namespace,
+					metric_name,
+					region,
+					dimensions,
+					from_timestamp,
+					to_timestamp,
+					updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?);`,
+					metric.Namespace,
+					metric.MetricName,
+					metric.Region,
+					d,
+					tr.From.Unix(),
+					tr.To.Unix(),
+					time.Now().UTC().Unix(),
+				)
+				if err != nil {
+					return err
+				}
 
-			metricID, err = res.LastInsertId()
-			if err != nil {
-				return err
-			}
-			fromTS = metric.FromTS.Unix()
-			toTS = metric.ToTS.Unix()
-		} else if err == nil && metricID > 0 {
-			toTS = max(toTS, metric.ToTS.Unix())
-			_, err := tx.ExecContext(ctx, `UPDATE metrics SET
+				metricID, err = res.LastInsertId()
+				if err != nil {
+					return err
+				}
+			} else if err == nil && metricID > 0 {
+				_, err := tx.ExecContext(ctx, `UPDATE metrics`+s+` SET
 				to_timestamp = ?,
 				updated_at = ?
 			WHERE metric_id = ?;`,
-				toTS,
-				time.Now().UTC().Unix(),
-				metricID,
-			)
-			if err != nil {
+					tr.To.Unix(),
+					time.Now().UTC().Unix(),
+					metricID,
+				)
+				if err != nil {
+					return err
+				}
+			} else {
 				return err
 			}
-		} else {
-			return err
-		}
 
-		trs := getLifetimeRanges(time.Unix(fromTS, 0).UTC(), time.Unix(toTS, 0).UTC())
-		for _, tr := range trs {
-			s := getLifetimeTableSuffix(tr.From, metric.Namespace)
-			res, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO metrics_lifetime`+s+`(
+			// metrics_lifetime
+			ls := getLifetimeTableSuffix(tr.From, metric.Namespace)
+			res, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO metrics_lifetime`+ls+`(
 				metric_id,
 				from_timestamp,
 				to_timestamp
@@ -179,7 +191,7 @@ func (ldb *LabelDB) RecordMetric(ctx context.Context, metric model.Metric) error
 				return err
 			}
 			if rowsAffected == 0 {
-				_, err = tx.ExecContext(ctx, `UPDATE metrics_lifetime`+s+` SET
+				_, err = tx.ExecContext(ctx, `UPDATE metrics_lifetime`+ls+` SET
 					to_timestamp = ?
 				WHERE metric_id = ?;`,
 					tr.To.Unix(),
@@ -240,10 +252,11 @@ func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*
 		return ms, errors.New("namespace label matcher is required")
 	}
 
-	s := getLifetimeTableSuffix(from, namespace)
+	s := getTableSuffix(from)
+	ls := getLifetimeTableSuffix(from, namespace)
 	q := `SELECT m.*
-FROM metrics_lifetime` + s + ` ml
-JOIN metrics m ON ml.metric_id = m.metric_id
+FROM metrics_lifetime` + ls + ` ml
+JOIN metrics` + s + ` m ON ml.metric_id = m.metric_id
 WHERE ` + strings.Join(whereClause, " AND ")
 	rows, err := ldb.db.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -307,10 +320,14 @@ func getPartition(t time.Time) timeRange {
 	}
 }
 
-func getLifetimeTableSuffix(t time.Time, namespace string) string {
+func getTableSuffix(t time.Time) string {
 	p := getPartition(t)
+	return "_" + p.From.Format("20060102") + "_" + p.To.Format("20060102")
+}
+
+func getLifetimeTableSuffix(t time.Time, namespace string) string {
 	namespace = strings.ReplaceAll(namespace, "/", "_")
-	return "_" + p.From.Format("20060102") + "_" + p.To.Format("20060102") + "_" + namespace
+	return getTableSuffix(t) + "_" + namespace
 }
 
 func getLifetimeRanges(from time.Time, to time.Time) []timeRange {
