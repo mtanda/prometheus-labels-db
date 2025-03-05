@@ -147,7 +147,7 @@ func TestUpdateMetric(t *testing.T) {
 				Value: "dim_value1",
 			},
 		},
-		FromTS: fromTS,
+		FromTS: fromTS.Add(1 * time.Second),
 		ToTS:   toTS.Add(-1 * time.Second),
 	})
 	if err != nil {

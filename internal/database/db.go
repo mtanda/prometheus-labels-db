@@ -176,11 +176,13 @@ func (ldb *LabelDB) recordMetricToPartition(ctx context.Context, tx *sql.Tx, met
 	} else if err == nil && metricID > 0 {
 		_, err := tx.ExecContext(ctx, `
 			UPDATE metrics`+s+` SET
+				from_timestamp = ?,
 				to_timestamp = ?,
 				updated_at = ?
 			WHERE metric_id = ?;
 			`,
-			tr.To.Unix(),
+			min(tr.From.Unix(), fromTS),
+			max(tr.To.Unix(), toTS),
 			time.Now().UTC().Unix(),
 			metricID,
 		)
@@ -214,10 +216,12 @@ func (ldb *LabelDB) recordMetricToPartition(ctx context.Context, tx *sql.Tx, met
 	if rowsAffected == 0 {
 		_, err = tx.ExecContext(ctx, `
 			UPDATE metrics_lifetime`+ls+` SET
+				from_timestamp = ?,
 				to_timestamp = ?
 			WHERE metric_id = ?;
 			`,
-			tr.To.Unix(),
+			min(tr.From.Unix(), fromTS),
+			max(tr.To.Unix(), toTS),
 			metricID,
 		)
 		if err != nil {
