@@ -40,7 +40,7 @@ func TestScrape(t *testing.T) {
 	metricsCh := make(chan model.Metric, 10)
 	recorder := NewCloudWatchScraper(client, "test_region", []string{"test_namespace"}, metricsCh)
 	recorder.Run(&wg)
-	time.Sleep(15 * time.Second)
+	time.Sleep(3 * time.Second)
 	recorder.Stop()
 	wg.Wait()
 	close(metricsCh)

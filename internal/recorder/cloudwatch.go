@@ -37,6 +37,14 @@ func NewCloudWatchScraper(client CloudWatchAPI, region string, ns []string, ch c
 func (c *CloudWatchScraper) Run(wg *sync.WaitGroup) {
 	var ctx context.Context
 	ctx, c.cancel = context.WithCancel(context.Background())
+
+	for _, ns := range c.namespaces {
+		err := c.scrape(ctx, ns)
+		if err != nil {
+			slog.Error("failed to scrape metrics: %s, %v\n", ns, err)
+		}
+	}
+
 	wg.Add(1)
 	go func() {
 		ticker := time.NewTicker(scrapeInterval)
