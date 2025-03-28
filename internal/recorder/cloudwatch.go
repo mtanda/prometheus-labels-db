@@ -3,7 +3,6 @@ package recorder
 import (
 	"context"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -23,6 +22,7 @@ type CloudWatchScraper struct {
 	namespaces []string
 	metricsCh  chan model.Metric
 	cancel     context.CancelFunc
+	done       chan struct{}
 }
 
 func NewCloudWatchScraper(client CloudWatchAPI, region string, ns []string, ch chan model.Metric) *CloudWatchScraper {
@@ -31,10 +31,11 @@ func NewCloudWatchScraper(client CloudWatchAPI, region string, ns []string, ch c
 		region:     region,
 		namespaces: ns,
 		metricsCh:  ch,
+		done:       make(chan struct{}),
 	}
 }
 
-func (c *CloudWatchScraper) Run(wg *sync.WaitGroup) {
+func (c *CloudWatchScraper) Run() {
 	var ctx context.Context
 	ctx, c.cancel = context.WithCancel(context.Background())
 
@@ -45,11 +46,10 @@ func (c *CloudWatchScraper) Run(wg *sync.WaitGroup) {
 		}
 	}
 
-	wg.Add(1)
 	go func() {
 		ticker := time.NewTicker(scrapeInterval)
 		defer ticker.Stop()
-		defer wg.Done()
+		defer close(c.done)
 		for {
 			select {
 			case <-ticker.C:
@@ -102,4 +102,5 @@ func (c *CloudWatchScraper) scrape(ctx context.Context, ns string) error {
 
 func (c *CloudWatchScraper) Stop() {
 	c.cancel()
+	<-c.done
 }

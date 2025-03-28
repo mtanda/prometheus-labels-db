@@ -3,7 +3,6 @@ package recorder
 import (
 	"context"
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -17,7 +16,6 @@ func TestRecord(t *testing.T) {
 	chanLength := 10
 	metricsCount := chanLength * 2
 
-	var wg sync.WaitGroup
 	dbDir := t.TempDir()
 	ldb, err := database.Open(dbDir)
 	if err != nil {
@@ -25,7 +23,7 @@ func TestRecord(t *testing.T) {
 	}
 	metricsCh := make(chan model.Metric, chanLength)
 	recorder := New(ldb, metricsCh)
-	recorder.Run(&wg)
+	recorder.Run()
 
 	now := time.Now().UTC()
 	from := now.Add(-1 * time.Hour)
@@ -47,7 +45,7 @@ func TestRecord(t *testing.T) {
 		}
 	}
 	close(metricsCh)
-	wg.Wait()
+	recorder.Stop()
 
 	result, err := ldb.QueryMetrics(ctx, from, to, []*labels.Matcher{
 		labels.MustNewMatcher(labels.MatchEqual, "namespace", "test_namespace"),

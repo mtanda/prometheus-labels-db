@@ -2,7 +2,6 @@ package recorder
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -35,14 +34,12 @@ func (*mockCloudWatchAPI) ListMetrics(ctx context.Context, params *cloudwatch.Li
 func TestScrape(t *testing.T) {
 	// TODO rewrite by using synctest
 	scrapeInterval = 10 * time.Second
-	var wg sync.WaitGroup
 	client := &mockCloudWatchAPI{}
 	metricsCh := make(chan model.Metric, 10)
 	recorder := NewCloudWatchScraper(client, "test_region", []string{"test_namespace"}, metricsCh)
-	recorder.Run(&wg)
+	recorder.Run()
 	time.Sleep(3 * time.Second)
 	recorder.Stop()
-	wg.Wait()
 	close(metricsCh)
 	metrics := make([]model.Metric, 0, 10)
 	for metric := range metricsCh {
