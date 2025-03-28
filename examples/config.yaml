@@ -1,0 +1,4 @@
+targets:
+- region: ap-northeast-1
+  namespace:
+  - AWS/EC2
