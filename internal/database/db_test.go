@@ -330,12 +330,12 @@ func TestQueryMetrics(t *testing.T) {
 	toTS2 := baseToTS.Add(1 * 24 * time.Hour)
 	fromTS3 := baseFromTS.Add(-PartitionInterval * 6)
 	toTS3 := fromTS3.Add(PartitionInterval * 3)
-	metrics := []model.Metric{
-		generateMetrics("test_namespace", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
-		generateMetrics("test_namespace2", "test_name2", "test_region2", "dim2", "dim_value2", fromTS, toTS),
-		generateMetrics("test_namespace2", "test_name2", "test_region2", "dim2", "dim_value3", fromTS, toTS),
-		generateMetrics("test_namespace", "test_name", "test_region", "dim3", "dim_value3", fromTS2, toTS2),
-		generateMetrics("test_namespace", "test_name", "test_region", "dim4", "dim_value4", fromTS3, toTS3),
+	metrics := map[string]model.Metric{
+		"lm1": generateMetrics("test_namespace", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
+		"lm2": generateMetrics("test_namespace2", "test_name2", "test_region2", "dim2", "dim_value2", fromTS, toTS),
+		"lm3": generateMetrics("test_namespace2", "test_name2", "test_region2", "dim2", "dim_value3", fromTS, toTS),
+		"lm4": generateMetrics("test_namespace", "test_name", "test_region", "dim3", "dim_value3", fromTS2, toTS2),
+		"lm5": generateMetrics("test_namespace", "test_name", "test_region", "dim4", "dim_value4", fromTS3, toTS3),
 	}
 	for _, m := range metrics {
 		err = db.RecordMetric(ctx, m)
@@ -362,7 +362,7 @@ func TestQueryMetrics(t *testing.T) {
 				labels.MustNewMatcher(labels.MatchEqual, "dim1", "dim_value1"),
 			},
 			want: []model.Metric{
-				generateMetrics("test_namespace", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
+				metrics["lm1"],
 			},
 		},
 		{
@@ -376,7 +376,7 @@ func TestQueryMetrics(t *testing.T) {
 				labels.MustNewMatcher(labels.MatchEqual, "dim2", "dim_value2"),
 			},
 			want: []model.Metric{
-				generateMetrics("test_namespace2", "test_name2", "test_region2", "dim2", "dim_value2", fromTS, toTS),
+				metrics["lm2"],
 			},
 		},
 		{
@@ -389,8 +389,8 @@ func TestQueryMetrics(t *testing.T) {
 				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region2"),
 			},
 			want: []model.Metric{
-				generateMetrics("test_namespace2", "test_name2", "test_region2", "dim2", "dim_value2", fromTS, toTS),
-				generateMetrics("test_namespace2", "test_name2", "test_region2", "dim2", "dim_value3", fromTS, toTS),
+				metrics["lm2"],
+				metrics["lm3"],
 			},
 		},
 		{
@@ -403,8 +403,8 @@ func TestQueryMetrics(t *testing.T) {
 				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
 			},
 			want: []model.Metric{
-				generateMetrics("test_namespace", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
-				generateMetrics("test_namespace", "test_name", "test_region", "dim3", "dim_value3", fromTS2, toTS2),
+				metrics["lm1"],
+				metrics["lm4"],
 			},
 		},
 		{
@@ -418,7 +418,7 @@ func TestQueryMetrics(t *testing.T) {
 				labels.MustNewMatcher(labels.MatchRegexp, "dim1", "^dim_value.*$"),
 			},
 			want: []model.Metric{
-				generateMetrics("test_namespace", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
+				metrics["lm1"],
 			},
 		},
 		{
@@ -432,7 +432,7 @@ func TestQueryMetrics(t *testing.T) {
 				labels.MustNewMatcher(labels.MatchEqual, "dim4", "dim_value4"),
 			},
 			want: []model.Metric{
-				generateMetrics("test_namespace", "test_name", "test_region", "dim4", "dim_value4", fromTS3, toTS3),
+				metrics["lm5"],
 			},
 		},
 	}
