@@ -87,6 +87,18 @@ func (a Metric) UniqueKey() string {
 	return key
 }
 
+func (a Metric) Labels() map[string]string {
+	labels := map[string]string{
+		"metric_name": a.MetricName,
+		"namespace":   a.Namespace,
+		"region":      a.Region,
+	}
+	for _, d := range a.Dimensions {
+		labels[d.Name] = d.Value
+	}
+	return labels
+}
+
 type MetricLifetime struct {
 	MetricID int64
 	FromTS   time.Time
