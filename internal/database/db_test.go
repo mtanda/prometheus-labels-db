@@ -326,8 +326,8 @@ func TestQueryMetrics(t *testing.T) {
 
 	fromTS := baseFromTS
 	toTS := baseToTS
-	fromTS2 := baseFromTS.Add(1 * 24 * time.Hour)
-	toTS2 := baseToTS.Add(1 * 24 * time.Hour)
+	fromTS2 := baseFromTS.Add(1 * 12 * time.Hour)
+	toTS2 := baseToTS.Add(1 * 12 * time.Hour)
 	fromTS3 := baseFromTS.Add(-PartitionInterval * 6)
 	toTS3 := fromTS3.Add(PartitionInterval * 3)
 	metrics := map[string]model.Metric{
@@ -426,7 +426,7 @@ func TestQueryMetrics(t *testing.T) {
 		{
 			name: "[time range] match 1",
 			from: fromTS2,
-			to:   toTS2,
+			to:   fromTS2.Add(1 * time.Hour),
 			lm: []*labels.Matcher{
 				labels.MustNewMatcher(labels.MatchEqual, "namespace", "time_range_match"),
 				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
@@ -436,6 +436,54 @@ func TestQueryMetrics(t *testing.T) {
 				metrics["tm1"],
 				metrics["tm2"],
 			},
+		},
+		{
+			name: "[time range] match 2",
+			from: fromTS.Add(-2 * time.Second),
+			to:   fromTS,
+			lm: []*labels.Matcher{
+				labels.MustNewMatcher(labels.MatchEqual, "namespace", "time_range_match"),
+				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
+			},
+			want: []model.Metric{
+				metrics["tm1"],
+			},
+		},
+		{
+			name: "[time range] match 3",
+			from: fromTS.Add(-2 * time.Second),
+			to:   fromTS.Add(-1 * time.Second),
+			lm: []*labels.Matcher{
+				labels.MustNewMatcher(labels.MatchEqual, "namespace", "time_range_match"),
+				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
+			},
+			want: []model.Metric{},
+		},
+		{
+			name: "[time range] match 4",
+			from: toTS2,
+			to:   toTS2.Add(2 * time.Second),
+			lm: []*labels.Matcher{
+				labels.MustNewMatcher(labels.MatchEqual, "namespace", "time_range_match"),
+				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
+			},
+			want: []model.Metric{
+				metrics["tm2"],
+			},
+		},
+		{
+			name: "[time range] match 5",
+			from: toTS2.Add(1 * time.Second),
+			to:   toTS2.Add(2 * time.Second),
+			lm: []*labels.Matcher{
+				labels.MustNewMatcher(labels.MatchEqual, "namespace", "time_range_match"),
+				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
+			},
+			want: []model.Metric{},
 		},
 		{
 			name: "[time range] match long lifetime",
