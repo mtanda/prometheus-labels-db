@@ -386,6 +386,7 @@ func TestQueryMetrics(t *testing.T) {
 				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
 			},
 			want: []model.Metric{
+				generateMetrics("test_namespace", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
 				generateMetrics("test_namespace", "test_name", "test_region", "dim3", "dim_value3", fromTS2, toTS2),
 			},
 		},

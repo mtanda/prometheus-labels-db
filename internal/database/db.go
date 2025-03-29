@@ -328,9 +328,9 @@ func buildTimeConditions(tr timeRange) ([]string, []interface{}) {
 	var timeCondition []string
 	var timeArgs []interface{}
 	timeCondition = append(timeCondition, "ml.from_timestamp <= ?")
-	timeArgs = append(timeArgs, tr.From.Unix())
-	timeCondition = append(timeCondition, "ml.to_timestamp >= ?")
 	timeArgs = append(timeArgs, tr.To.Unix())
+	timeCondition = append(timeCondition, "ml.to_timestamp >= ?")
+	timeArgs = append(timeArgs, tr.From.Unix())
 	return timeCondition, timeArgs
 }
 
