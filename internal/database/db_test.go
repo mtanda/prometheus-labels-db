@@ -410,6 +410,20 @@ func TestQueryMetrics(t *testing.T) {
 			},
 		},
 		{
+			name: "[label] regex match 2",
+			from: fromTS,
+			to:   toTS,
+			lm: []*labels.Matcher{
+				labels.MustNewMatcher(labels.MatchEqual, "namespace", "label_match2"),
+				labels.MustNewMatcher(labels.MatchRegexp, "metric_name", "^test_.*$"),
+				labels.MustNewMatcher(labels.MatchRegexp, "region", "^test_.*$"),
+			},
+			want: []model.Metric{
+				metrics["lm2"],
+				metrics["lm3"],
+			},
+		},
+		{
 			name: "[time range] match 1",
 			from: fromTS2,
 			to:   toTS2,
