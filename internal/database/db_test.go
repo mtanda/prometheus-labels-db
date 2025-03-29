@@ -299,11 +299,11 @@ func TestQueryMetrics(t *testing.T) {
 	}
 	defer db.Close()
 
-	fromTS, err := time.ParseInLocation(time.RFC3339, "2025-01-01T00:00:00Z", time.UTC)
+	baseFromTS, err := time.ParseInLocation(time.RFC3339, "2025-01-01T00:00:00Z", time.UTC)
 	if err != nil {
 		t.Fatal(err)
 	}
-	toTS, err := time.ParseInLocation(time.RFC3339, "2025-01-02T00:00:00Z", time.UTC)
+	baseToTS, err := time.ParseInLocation(time.RFC3339, "2025-01-02T00:00:00Z", time.UTC)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,9 +324,11 @@ func TestQueryMetrics(t *testing.T) {
 		}
 	}
 
-	fromTS2 := fromTS.Add(1 * 24 * time.Hour)
-	toTS2 := toTS.Add(1 * 24 * time.Hour)
-	fromTS3 := fromTS.Add(-PartitionInterval * 6)
+	fromTS := baseFromTS
+	toTS := baseToTS
+	fromTS2 := baseFromTS.Add(1 * 24 * time.Hour)
+	toTS2 := baseToTS.Add(1 * 24 * time.Hour)
+	fromTS3 := baseFromTS.Add(-PartitionInterval * 6)
 	toTS3 := fromTS3.Add(PartitionInterval * 3)
 	metrics := []model.Metric{
 		generateMetrics("test_namespace", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
