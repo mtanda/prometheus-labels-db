@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	"github.com/mtanda/prometheus-labels-db/internal/model"
+	"golang.org/x/time/rate"
 )
 
 var scrapeInterval = 10 * time.Minute
@@ -21,16 +22,18 @@ type CloudWatchScraper struct {
 	region     string
 	namespaces []string
 	metricsCh  chan model.Metric
+	limiter    *rate.Limiter
 	cancel     context.CancelFunc
 	done       chan struct{}
 }
 
-func NewCloudWatchScraper(client CloudWatchAPI, region string, ns []string, ch chan model.Metric) *CloudWatchScraper {
+func NewCloudWatchScraper(client CloudWatchAPI, region string, ns []string, ch chan model.Metric, limiter *rate.Limiter) *CloudWatchScraper {
 	return &CloudWatchScraper{
 		cwClient:   client,
 		region:     region,
 		namespaces: ns,
 		metricsCh:  ch,
+		limiter:    limiter,
 		done:       make(chan struct{}),
 	}
 }
@@ -74,6 +77,9 @@ func (c *CloudWatchScraper) scrape(ctx context.Context, ns string) error {
 		RecentlyActive: "PT3H",
 	})
 	for paginator.HasMorePages() {
+		if err := c.limiter.Wait(ctx); err != nil {
+			continue
+		}
 		output, err := paginator.NextPage(ctx)
 		if err != nil {
 			return err

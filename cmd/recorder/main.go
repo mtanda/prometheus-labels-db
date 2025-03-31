@@ -15,16 +15,20 @@ import (
 	"github.com/mtanda/prometheus-labels-db/internal/recorder"
 	"golang.org/x/exp/slog"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 )
 
 type Recorder struct {
 	metricsCh chan model.Metric
+	limiter   *rate.Limiter
 	scraper   []*recorder.CloudWatchScraper
 	recorder  *recorder.Recorder
 }
 
 func newRecorder(dbDir string) (*Recorder, error) {
 	metricsCh := make(chan model.Metric, 1000)
+	ListMetricsDefaultMaxTPS := 25
+	limiter := rate.NewLimiter(rate.Limit(ListMetricsDefaultMaxTPS/2), 1)
 
 	if stat, err := os.Stat(dbDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dbDir, 0o777); err != nil {
@@ -44,6 +48,7 @@ func newRecorder(dbDir string) (*Recorder, error) {
 
 	return &Recorder{
 		metricsCh: metricsCh,
+		limiter:   limiter,
 		recorder:  recorder,
 	}, nil
 }
@@ -55,7 +60,7 @@ func (r *Recorder) addTarget(target model.Target) error {
 	}
 	client := cloudwatch.NewFromConfig(awsCfg)
 
-	scraper := recorder.NewCloudWatchScraper(client, target.Region, target.Namespace, r.metricsCh)
+	scraper := recorder.NewCloudWatchScraper(client, target.Region, target.Namespace, r.metricsCh, r.limiter)
 	scraper.Run()
 	r.scraper = append(r.scraper, scraper)
 

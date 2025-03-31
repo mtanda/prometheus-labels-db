@@ -11,6 +11,7 @@ require (
 	github.com/prometheus/prometheus v0.302.1
 	golang.org/x/exp v0.0.0-20240119083558-1b970713d09a
 	golang.org/x/sync v0.10.0
+	golang.org/x/time v0.9.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
