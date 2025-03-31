@@ -70,6 +70,7 @@ func (c *CloudWatchScraper) Run() {
 }
 
 func (c *CloudWatchScraper) scrape(ctx context.Context, ns string) error {
+	slog.Info("scraping metrics", "namespace", ns)
 	now := time.Now().UTC()
 
 	paginator := cloudwatch.NewListMetricsPaginator(c.cwClient, &cloudwatch.ListMetricsInput{
