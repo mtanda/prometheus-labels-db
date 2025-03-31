@@ -534,7 +534,7 @@ func BenchmarkInsert10000Metrics(b *testing.B) {
 			if i == 0 {
 				fromTS = fromTS.Add(-365 * 24 * 60 * 60 * time.Second)
 			}
-			toTS := fromTS.Add(time.Duration(rand.Intn(60*60)) * time.Second)
+			toTS := fromTS.Add(time.Duration(rand.Intn(60*60)+1) * time.Second)
 			err = db.RecordMetric(ctx, model.Metric{
 				Namespace:  "test_namespace",
 				MetricName: "test_name",
