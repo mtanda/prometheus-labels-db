@@ -82,7 +82,7 @@ func (c *CloudWatchScraper) scrape(ctx context.Context, ns string) error {
 		}
 		output, err := paginator.NextPage(ctx)
 		if err != nil {
-			return err
+			continue // ignore error
 		}
 		for _, m := range output.Metrics {
 			dim := make([]model.Dimension, 0, len(m.Dimensions))
