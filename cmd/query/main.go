@@ -12,6 +12,7 @@ import (
 	"github.com/mtanda/prometheus-labels-db/internal/database"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/prometheus/promql/parser"
 )
@@ -86,8 +87,33 @@ func main() {
 	)
 	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
 
-	http.HandleFunc("/api/v1/series", func(w http.ResponseWriter, r *http.Request) {
-		seriesHandler(w, r, db)
-	})
+	counter := promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+		Name: "http_requests_total",
+		Help: "Total number of requests",
+	}, []string{"code", "method"})
+	duration := promauto.With(reg).NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "http_request_duration_seconds",
+			Help:    "A histogram of latencies for requests.",
+			Buckets: prometheus.ExponentialBuckets(0.0625, 2, 10),
+		}, []string{"handler", "method"})
+	responseSize := promauto.With(reg).NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "http_response_size_bytes",
+			Help:    "A histogram of response sizes for requests.",
+			Buckets: prometheus.ExponentialBuckets(100, 2, 10),
+		}, []string{"handler"})
+	http.HandleFunc("/api/v1/series", promhttp.InstrumentHandlerDuration(
+		duration.MustCurryWith(prometheus.Labels{"handler": "/api/v1/series"}),
+		promhttp.InstrumentHandlerCounter(
+			counter,
+			promhttp.InstrumentHandlerResponseSize(
+				responseSize.MustCurryWith(prometheus.Labels{"handler": "/api/v1/series"}),
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					seriesHandler(w, r, db)
+				}),
+			),
+		),
+	))
 	http.ListenAndServe(listenAddress, nil)
 }
