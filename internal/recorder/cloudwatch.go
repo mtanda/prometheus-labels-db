@@ -8,6 +8,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	"github.com/mtanda/prometheus-labels-db/internal/model"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/time/rate"
 )
 
@@ -18,23 +20,39 @@ type CloudWatchAPI interface {
 }
 
 type CloudWatchScraper struct {
-	cwClient   CloudWatchAPI
-	region     string
-	namespaces []string
-	metricsCh  chan model.Metric
-	limiter    *rate.Limiter
-	cancel     context.CancelFunc
-	done       chan struct{}
+	cwClient           CloudWatchAPI
+	region             string
+	namespaces         []string
+	metricsCh          chan model.Metric
+	limiter            *rate.Limiter
+	cancel             context.CancelFunc
+	done               chan struct{}
+	scrapeMetricsTotal *prometheus.CounterVec
+	apiCallsTotal      *prometheus.CounterVec
 }
 
-func NewCloudWatchScraper(client CloudWatchAPI, region string, ns []string, ch chan model.Metric, limiter *rate.Limiter) *CloudWatchScraper {
+func NewCloudWatchScraper(client CloudWatchAPI, region string, ns []string, ch chan model.Metric, limiter *rate.Limiter, registry *prometheus.Registry) *CloudWatchScraper {
+	reg := prometheus.WrapRegistererWith(
+		prometheus.Labels{"region": region},
+		registry,
+	)
+	scrapeMetricsTotal := promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+		Name: "scraper_metrics_total",
+		Help: "Total number of scraped metrics",
+	}, []string{"namespace"})
+	apiCallsTotal := promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+		Name: "scraper_cloudwatch_api_calls_total",
+		Help: "Total number of CloudWatch API calls",
+	}, []string{"api", "namespace", "status"})
 	return &CloudWatchScraper{
-		cwClient:   client,
-		region:     region,
-		namespaces: ns,
-		metricsCh:  ch,
-		limiter:    limiter,
-		done:       make(chan struct{}),
+		cwClient:           client,
+		region:             region,
+		namespaces:         ns,
+		metricsCh:          ch,
+		limiter:            limiter,
+		done:               make(chan struct{}),
+		scrapeMetricsTotal: scrapeMetricsTotal,
+		apiCallsTotal:      apiCallsTotal,
 	}
 }
 
@@ -83,8 +101,10 @@ func (c *CloudWatchScraper) scrape(ctx context.Context, ns string) error {
 		}
 		output, err := paginator.NextPage(ctx)
 		if err != nil {
+			c.apiCallsTotal.WithLabelValues("ListMetrics", ns, "error").Inc()
 			continue // ignore error
 		}
+		c.apiCallsTotal.WithLabelValues("ListMetrics", ns, "success").Inc()
 		for _, m := range output.Metrics {
 			dim := make([]model.Dimension, 0, len(m.Dimensions))
 			for _, d := range m.Dimensions {
@@ -102,6 +122,7 @@ func (c *CloudWatchScraper) scrape(ctx context.Context, ns string) error {
 				ToTS:       now,
 				UpdatedAt:  now,
 			}
+			c.scrapeMetricsTotal.WithLabelValues(ns).Inc()
 		}
 	}
 	return nil

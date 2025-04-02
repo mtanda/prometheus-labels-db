@@ -25,11 +25,12 @@ import (
 type Recorder struct {
 	metricsCh chan model.Metric
 	limiter   *rate.Limiter
+	registry  *prometheus.Registry
 	scraper   []*recorder.CloudWatchScraper
 	recorder  *recorder.Recorder
 }
 
-func newRecorder(dbDir string) (*Recorder, error) {
+func newRecorder(dbDir string, registry *prometheus.Registry) (*Recorder, error) {
 	metricsCh := make(chan model.Metric, 1000)
 	ListMetricsDefaultMaxTPS := 25
 	limiter := rate.NewLimiter(rate.Limit(ListMetricsDefaultMaxTPS/2), 1)
@@ -47,12 +48,13 @@ func newRecorder(dbDir string) (*Recorder, error) {
 		return nil, err
 	}
 
-	recorder := recorder.New(ldb, metricsCh)
+	recorder := recorder.New(ldb, metricsCh, registry)
 	recorder.Run()
 
 	return &Recorder{
 		metricsCh: metricsCh,
 		limiter:   limiter,
+		registry:  registry,
 		recorder:  recorder,
 	}, nil
 }
@@ -64,7 +66,7 @@ func (r *Recorder) addTarget(target model.Target) error {
 	}
 	client := cloudwatch.NewFromConfig(awsCfg)
 
-	scraper := recorder.NewCloudWatchScraper(client, target.Region, target.Namespace, r.metricsCh, r.limiter)
+	scraper := recorder.NewCloudWatchScraper(client, target.Region, target.Namespace, r.metricsCh, r.limiter, r.registry)
 	scraper.Run()
 	r.scraper = append(r.scraper, scraper)
 
@@ -94,8 +96,8 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	slog.SetDefault(logger)
 
+	reg := prometheus.NewRegistry()
 	go func() {
-		reg := prometheus.NewRegistry()
 		reg.MustRegister(
 			collectors.NewGoCollector(),
 			collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
@@ -104,7 +106,7 @@ func main() {
 		http.ListenAndServe(listenAddress, nil)
 	}()
 
-	recorder, err := newRecorder(dbDir)
+	recorder, err := newRecorder(dbDir, reg)
 	if err != nil {
 		logger.Error("failed to create recorder", "error", err)
 		os.Exit(1)
