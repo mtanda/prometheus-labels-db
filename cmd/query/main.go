@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/mtanda/prometheus-labels-db/internal/database"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/prometheus/promql/parser"
 )
 
@@ -75,6 +78,13 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
+	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
 
 	http.HandleFunc("/api/v1/series", func(w http.ResponseWriter, r *http.Request) {
 		seriesHandler(w, r, db)

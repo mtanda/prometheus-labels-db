@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,6 +14,9 @@ import (
 	"github.com/mtanda/prometheus-labels-db/internal/database"
 	"github.com/mtanda/prometheus-labels-db/internal/model"
 	"github.com/mtanda/prometheus-labels-db/internal/recorder"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/exp/slog"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
@@ -80,6 +84,8 @@ func main() {
 	flag.StringVar(&dbDir, "db.dir", "./data/", "Path to the database directory")
 	var configFile string
 	flag.StringVar(&configFile, "config.file", "config.yaml", "Path to the config file")
+	var listenAddress string
+	flag.StringVar(&listenAddress, "web.listen-address", "0.0.0.0:8081", "Address to listen")
 	flag.Parse()
 
 	sig := make(chan os.Signal, 1)
@@ -87,6 +93,16 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	slog.SetDefault(logger)
+
+	go func() {
+		reg := prometheus.NewRegistry()
+		reg.MustRegister(
+			collectors.NewGoCollector(),
+			collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+		)
+		http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
+		http.ListenAndServe(listenAddress, nil)
+	}()
 
 	recorder, err := newRecorder(dbDir)
 	if err != nil {
