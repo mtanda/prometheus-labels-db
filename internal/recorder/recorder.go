@@ -2,7 +2,7 @@ package recorder
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/mtanda/prometheus-labels-db/internal/database"
@@ -12,15 +12,18 @@ import (
 )
 
 const (
-	MaxRetry = 3
+	MaxRetry              = 3
+	WALCheckpointInterval = 10 * time.Minute
 )
 
 type Recorder struct {
-	ldb             *database.LabelDB
-	metricsCh       chan model.Metric
-	done            chan struct{}
-	recordTotal     *prometheus.CounterVec
-	recordDurations prometheus.Histogram
+	ldb                    *database.LabelDB
+	metricsCh              chan model.Metric
+	done                   chan struct{}
+	recordTotal            *prometheus.CounterVec
+	recordDurations        prometheus.Histogram
+	walCheckpointTotal     *prometheus.CounterVec
+	walCheckpointDurations prometheus.Histogram
 }
 
 func New(ldb *database.LabelDB, ch chan model.Metric, registry *prometheus.Registry) *Recorder {
@@ -33,12 +36,23 @@ func New(ldb *database.LabelDB, ch chan model.Metric, registry *prometheus.Regis
 		Help:    "Duration of recording metrics in seconds",
 		Buckets: prometheus.ExponentialBuckets(0.001, 2, 20),
 	})
+	walCheckpointTotal := promauto.With(registry).NewCounterVec(prometheus.CounterOpts{
+		Name: "recorder_wal_checkpoint_total",
+		Help: "Total number of wal checkpoint operations",
+	}, []string{"status"})
+	walCheckpointDurations := promauto.With(registry).NewHistogram(prometheus.HistogramOpts{
+		Name:    "recorder_wal_checkpoint_duration_seconds",
+		Help:    "Duration of wal checkpoint in seconds",
+		Buckets: prometheus.ExponentialBuckets(0.01, 2, 20),
+	})
 	return &Recorder{
-		ldb:             ldb,
-		metricsCh:       ch,
-		done:            make(chan struct{}),
-		recordTotal:     recordTotal,
-		recordDurations: recordDurations,
+		ldb:                    ldb,
+		metricsCh:              ch,
+		done:                   make(chan struct{}),
+		recordTotal:            recordTotal,
+		recordDurations:        recordDurations,
+		walCheckpointTotal:     walCheckpointTotal,
+		walCheckpointDurations: walCheckpointDurations,
 	}
 }
 
@@ -46,17 +60,39 @@ func (r *Recorder) Run() {
 	ctx := context.TODO()
 	go func() {
 		defer close(r.done)
-		for metric := range r.metricsCh {
-			for i := 0; i < MaxRetry; i++ {
+		checkpointTicker := time.NewTicker(WALCheckpointInterval)
+		defer checkpointTicker.Stop()
+		for {
+			select {
+			case metric, ok := <-r.metricsCh:
+				if !ok {
+					slog.Info("metrics channel closed")
+					return
+				}
+				for i := 0; i < MaxRetry; i++ {
+					now := time.Now()
+					err := r.ldb.RecordMetric(ctx, metric)
+					if err != nil {
+						slog.Error("failed to record metric", "metric", metric, "error", err, "retry", i+1)
+						r.recordTotal.WithLabelValues("error").Inc()
+					} else {
+						r.recordTotal.WithLabelValues("success").Inc()
+						r.recordDurations.Observe(time.Since(now).Seconds())
+						break
+					}
+				}
+			case <-checkpointTicker.C:
+				slog.Info("WAL checkpoint triggered")
 				now := time.Now()
-				err := r.ldb.RecordMetric(ctx, metric)
+				err := r.ldb.WalCheckpoint(ctx)
 				if err != nil {
-					fmt.Printf("failed to record metric: %v, %v\n", metric, err)
-					r.recordTotal.WithLabelValues("error").Inc()
+					// ignore error
+					slog.Error("failed to WAL checkpoint", "error", err)
+					r.walCheckpointTotal.WithLabelValues("error").Inc()
 				} else {
-					r.recordTotal.WithLabelValues("success").Inc()
-					r.recordDurations.Observe(time.Since(now).Seconds())
-					break
+					slog.Info("WAL checkpoint completed")
+					r.walCheckpointTotal.WithLabelValues("success").Inc()
+					r.walCheckpointDurations.Observe(time.Since(now).Seconds())
 				}
 			}
 		}
