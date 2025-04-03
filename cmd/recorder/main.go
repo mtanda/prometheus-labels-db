@@ -108,13 +108,13 @@ func main() {
 
 	recorder, err := newRecorder(dbDir, reg)
 	if err != nil {
-		logger.Error("failed to create recorder", "error", err)
+		slog.Error("failed to create recorder", "error", err)
 		os.Exit(1)
 	}
 
 	cfg, err := model.LoadConfig(configFile)
 	if err != nil {
-		logger.Error("failed to load config", "error", err)
+		slog.Error("failed to load config", "error", err)
 		os.Exit(1)
 	}
 
@@ -125,7 +125,7 @@ func main() {
 		errgrp.Go(func() error {
 			err := recorder.addTarget(target)
 			if err != nil {
-				logger.Error("failed to add target", "target", target, "error", err)
+				slog.Error("failed to add target", "target", target, "error", err)
 				return err
 			}
 			<-ctx.Done()
@@ -135,12 +135,12 @@ func main() {
 	}
 
 	<-sig
-	logger.Info("received signal, stopping the recorder...")
+	slog.Info("received signal, stopping the recorder...")
 	cancel()
 	err = errgrp.Wait()
 	if err != nil {
-		logger.Error("error while stopping the recorder", "error", err)
+		slog.Error("error while stopping the recorder", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("recorder stopped successfully")
+	slog.Info("recorder stopped successfully")
 }
