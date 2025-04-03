@@ -34,7 +34,7 @@ type LabelDB struct {
 var createTableStmt string
 
 func Open(dir string) (*LabelDB, error) {
-	db, err := sql.Open("sqlite3", dir+"/"+DbPath+"?cache=shared&_journal_mode=WAL&_sync=FULL&_busy_timeout=10000")
+	db, err := sql.Open("sqlite3", "file:"+dir+"/"+DbPath+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=10000")
 	if err != nil {
 		return nil, err
 	}
