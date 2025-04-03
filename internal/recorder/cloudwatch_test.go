@@ -9,6 +9,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
 	"github.com/mtanda/prometheus-labels-db/internal/model"
+	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/time/rate"
 )
 
 type mockCloudWatchAPI struct {
@@ -36,7 +38,9 @@ func TestScrape(t *testing.T) {
 	scrapeInterval = 10 * time.Second
 	client := &mockCloudWatchAPI{}
 	metricsCh := make(chan model.Metric, 10)
-	recorder := NewCloudWatchScraper(client, "test_region", []string{"test_namespace"}, metricsCh)
+	limiter := rate.NewLimiter(10000, 1)
+	reg := prometheus.NewRegistry()
+	recorder := NewCloudWatchScraper(client, "test_region", []string{"test_namespace"}, metricsCh, limiter, reg)
 	recorder.Run()
 	time.Sleep(3 * time.Second)
 	recorder.Stop()

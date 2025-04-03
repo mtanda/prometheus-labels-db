@@ -8,6 +8,7 @@ import (
 
 	"github.com/mtanda/prometheus-labels-db/internal/database"
 	"github.com/mtanda/prometheus-labels-db/internal/model"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/labels"
 )
 
@@ -22,7 +23,8 @@ func TestRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	metricsCh := make(chan model.Metric, chanLength)
-	recorder := New(ldb, metricsCh)
+	reg := prometheus.NewRegistry()
+	recorder := New(ldb, metricsCh, reg)
 	recorder.Run()
 
 	now := time.Now().UTC()
