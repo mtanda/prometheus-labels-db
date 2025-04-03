@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"strings"
 	"text/template"
 	"time"
@@ -23,6 +25,7 @@ const (
 	DbPath            = "labels.db"
 	PartitionInterval = 3 * 4 * 7 * 24 * time.Hour
 	InitCacheSize     = 1000
+	WalAutoCheckpoint = 100
 )
 
 type LabelDB struct {
@@ -38,6 +41,7 @@ func Open(dir string) (*LabelDB, error) {
 	if err != nil {
 		return nil, err
 	}
+	setAutoCheckpoint(db, WalAutoCheckpoint)
 	cache, err := lru.New[string, struct{}](InitCacheSize)
 	if err != nil {
 		return nil, err
@@ -46,6 +50,14 @@ func Open(dir string) (*LabelDB, error) {
 		db:    db,
 		cache: cache,
 	}, nil
+}
+
+func setAutoCheckpoint(db *sql.DB, n int) error {
+	_, err := db.Exec(fmt.Sprintf("PRAGMA wal_autocheckpoint=%d", n))
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (ldb *LabelDB) Close() error {
@@ -286,6 +298,16 @@ WHERE ` + strings.Join(append(timeCondition, labelCondition...), " AND ")
 	}
 
 	return ms, nil
+}
+
+func (ldb *LabelDB) WalCheckpoint(ctx context.Context) error {
+	checkpointPRAGMA := `PRAGMA wal_checkpoint(TRUNCATE)`
+	var ok, pages, moved int
+	if err := ldb.db.QueryRow(checkpointPRAGMA).Scan(&ok, &pages, &moved); err != nil {
+		return err
+	}
+	slog.Debug("WAL checkpoint", "ok", ok, "pages", pages, "moved", moved)
+	return nil
 }
 
 func buildLabelConditions(lm []*labels.Matcher) ([]string, []interface{}, string, error) {
