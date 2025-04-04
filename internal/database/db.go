@@ -100,14 +100,10 @@ func (ldb *LabelDB) init(ctx context.Context, tx *sql.Tx, t time.Time, namespace
 	}
 
 	data := struct {
-		MetricsPreSuffix         string
 		MetricsCurSuffix         string
-		MetricsLifetimePreSuffix string
 		MetricsLifetimeCurSuffix string
 	}{
-		MetricsPreSuffix:         getTableSuffix(t.Add(-1 * PartitionInterval)),
 		MetricsCurSuffix:         suffix,
-		MetricsLifetimePreSuffix: getLifetimeTableSuffix(t.Add(-1*PartitionInterval), namespace),
 		MetricsLifetimeCurSuffix: lsuffix,
 	}
 	tmpl, err := template.New("").Parse(createTableStmt)
