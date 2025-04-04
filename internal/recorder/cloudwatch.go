@@ -131,4 +131,5 @@ func (c *CloudWatchScraper) scrape(ctx context.Context, ns string) error {
 func (c *CloudWatchScraper) Stop() {
 	c.cancel()
 	<-c.done
+	slog.Info("stopped CloudWatch scraper", "region", c.region, "namespaces", c.namespaces)
 }

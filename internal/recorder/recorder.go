@@ -66,7 +66,7 @@ func (r *Recorder) Run() {
 			select {
 			case metric, ok := <-r.metricsCh:
 				if !ok {
-					slog.Info("metrics channel closed")
+					// channel is closed, stop the recorder
 					return
 				}
 				for i := 0; i < MaxRetry; i++ {
@@ -101,4 +101,5 @@ func (r *Recorder) Run() {
 
 func (r *Recorder) Stop() {
 	<-r.done
+	slog.Info("stopped recorder")
 }
