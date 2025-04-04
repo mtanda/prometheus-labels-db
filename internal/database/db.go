@@ -61,6 +61,7 @@ func (ldb *LabelDB) getDB(t time.Time) (*sql.DB, error) {
 		return db, nil
 	}
 
+	// TODO: support mode=ro for query command
 	db, err := sql.Open("sqlite3", "file:"+ldb.dir+"/"+dbPath+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=10000")
 	if err != nil {
 		return nil, err
@@ -268,6 +269,7 @@ func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*
 		return ms, err
 	}
 
+	// TODO: support multiple namespaces
 	mm := make(map[string]*model.Metric)
 	trs := getLifetimeRanges(from, to)
 	for _, tr := range trs {
