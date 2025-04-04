@@ -26,11 +26,13 @@ const (
 	PartitionInterval = 3 * 4 * 7 * 24 * time.Hour
 	InitCacheSize     = 1000
 	WalAutoCheckpoint = 100
+	IdleTimeout       = 1 * time.Hour
 )
 
 type LabelDB struct {
 	dir         string
 	db          map[string]*sql.DB
+	lastUsed    map[string]time.Time
 	initialized *lru.Cache[string, struct{}]
 }
 
@@ -45,12 +47,15 @@ func Open(dir string) (*LabelDB, error) {
 	return &LabelDB{
 		dir:         dir,
 		db:          make(map[string]*sql.DB),
+		lastUsed:    make(map[string]time.Time),
 		initialized: cache,
 	}, nil
 }
 
 func (ldb *LabelDB) getDB(t time.Time) (*sql.DB, error) {
 	suffix := getTableSuffix(t)
+	ldb.lastUsed[suffix] = time.Now()
+
 	dbPath := fmt.Sprintf(DbPathPattern, suffix)
 	if db, ok := ldb.db[dbPath]; ok {
 		return db, nil
@@ -321,9 +326,21 @@ WHERE ` + strings.Join(append(timeCondition, labelCondition...), " AND ")
 func (ldb *LabelDB) WalCheckpoint(ctx context.Context) error {
 	checkpointPRAGMA := `PRAGMA wal_checkpoint(TRUNCATE)`
 	var ok, pages, moved int
-	for _, db := range ldb.db {
+	for suffix, db := range ldb.db {
 		if err := db.QueryRow(checkpointPRAGMA).Scan(&ok, &pages, &moved); err != nil {
 			return err
+		}
+
+		// clean up unused db connections
+		if ldb.lastUsed[suffix].Add(IdleTimeout).Before(time.Now()) {
+			if err := db.Close(); err != nil {
+				// ignore error
+				slog.Error("failed to close db", "err", err)
+				continue
+			}
+			delete(ldb.db, suffix)
+			delete(ldb.lastUsed, suffix)
+			slog.Info("close unused db", "suffix", suffix)
 		}
 	}
 	slog.Debug("WAL checkpoint", "ok", ok, "pages", pages, "moved", moved)
