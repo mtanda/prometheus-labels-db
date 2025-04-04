@@ -22,14 +22,15 @@ import (
 )
 
 const (
-	DbPath            = "labels.db"
+	DbPathPattern     = "labels%s.db"
 	PartitionInterval = 3 * 4 * 7 * 24 * time.Hour
 	InitCacheSize     = 1000
 	WalAutoCheckpoint = 100
 )
 
 type LabelDB struct {
-	db          *sql.DB
+	dir         string
+	db          map[string]*sql.DB
 	initialized *lru.Cache[string, struct{}]
 }
 
@@ -37,26 +38,31 @@ type LabelDB struct {
 var createTableStmt string
 
 func Open(dir string) (*LabelDB, error) {
-	db, err := openDB(dir)
-	if err != nil {
-		return nil, err
-	}
 	cache, err := lru.New[string, struct{}](InitCacheSize)
 	if err != nil {
 		return nil, err
 	}
 	return &LabelDB{
-		db:          db,
+		dir:         dir,
+		db:          make(map[string]*sql.DB),
 		initialized: cache,
 	}, nil
 }
 
-func openDB(dir string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", "file:"+dir+"/"+DbPath+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=10000")
+func (ldb *LabelDB) getDB(t time.Time) (*sql.DB, error) {
+	suffix := getTableSuffix(t)
+	dbPath := fmt.Sprintf(DbPathPattern, suffix)
+	if db, ok := ldb.db[dbPath]; ok {
+		return db, nil
+	}
+
+	db, err := sql.Open("sqlite3", "file:"+ldb.dir+"/"+dbPath+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=10000")
 	if err != nil {
 		return nil, err
 	}
 	setAutoCheckpoint(db, WalAutoCheckpoint)
+	ldb.db[suffix] = db
+
 	return db, nil
 }
 
@@ -69,7 +75,15 @@ func setAutoCheckpoint(db *sql.DB, n int) error {
 }
 
 func (ldb *LabelDB) Close() error {
-	return ldb.db.Close()
+	var allErr error
+	for _, db := range ldb.db {
+		if err := db.Close(); err != nil {
+			// ignore error
+			slog.Error("failed to close db", "err", err)
+			allErr = errors.Join(allErr, err)
+		}
+	}
+	return allErr
 }
 
 func (ldb *LabelDB) init(ctx context.Context, tx *sql.Tx, t time.Time, namespace string) error {
@@ -115,33 +129,25 @@ func (ldb *LabelDB) RecordMetric(ctx context.Context, metric model.Metric) error
 		return errors.New("from timestamp is greater than to timestamp")
 	}
 
-	err := withTx(ctx, ldb.db, func(tx *sql.Tx) error {
-		trs := getLifetimeRanges(metric.FromTS, metric.ToTS)
-		for _, tr := range trs {
+	trs := getLifetimeRanges(metric.FromTS, metric.ToTS)
+	for _, tr := range trs {
+		db, err := ldb.getDB(tr.From)
+		if err != nil {
+			return err
+		}
+		err = withTx(ctx, db, func(tx *sql.Tx) error {
 			err := ldb.init(ctx, tx, tr.From, metric.Namespace)
 			if err != nil {
 				return err
 			}
+			return ldb.recordMetricToPartition(ctx, tx, metric, tr)
+		})
+		if err != nil {
+			return err
 		}
-		return nil
-	})
-	if err != nil {
-		return err
 	}
 
-	err = withTx(ctx, ldb.db, func(tx *sql.Tx) error {
-		trs := getLifetimeRanges(metric.FromTS, metric.ToTS)
-		for _, tr := range trs {
-			err = ldb.recordMetricToPartition(ctx, tx, metric, tr)
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-
-	return err
+	return nil
 }
 
 func (ldb *LabelDB) recordMetricToPartition(ctx context.Context, tx *sql.Tx, metric model.Metric, tr timeRange) error {
@@ -264,6 +270,10 @@ func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*
 	mm := make(map[string]*model.Metric)
 	trs := getLifetimeRanges(from, to)
 	for _, tr := range trs {
+		db, err := ldb.getDB(tr.From)
+		if err != nil {
+			return ms, err
+		}
 		timeCondition, timeArgs := buildTimeConditions(tr)
 
 		s := getTableSuffix(tr.From)
@@ -272,7 +282,7 @@ func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*
 FROM metrics_lifetime` + ls + ` ml
 JOIN metrics` + s + ` m ON ml.metric_id = m.metric_id
 WHERE ` + strings.Join(append(timeCondition, labelCondition...), " AND ")
-		rows, err := ldb.db.QueryContext(ctx, q, append(timeArgs, labelArgs...)...)
+		rows, err := db.QueryContext(ctx, q, append(timeArgs, labelArgs...)...)
 		if err != nil {
 			return ms, err
 		}
@@ -311,8 +321,10 @@ WHERE ` + strings.Join(append(timeCondition, labelCondition...), " AND ")
 func (ldb *LabelDB) WalCheckpoint(ctx context.Context) error {
 	checkpointPRAGMA := `PRAGMA wal_checkpoint(TRUNCATE)`
 	var ok, pages, moved int
-	if err := ldb.db.QueryRow(checkpointPRAGMA).Scan(&ok, &pages, &moved); err != nil {
-		return err
+	for _, db := range ldb.db {
+		if err := db.QueryRow(checkpointPRAGMA).Scan(&ok, &pages, &moved); err != nil {
+			return err
+		}
 	}
 	slog.Debug("WAL checkpoint", "ok", ok, "pages", pages, "moved", moved)
 	return nil
