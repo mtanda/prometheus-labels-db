@@ -29,8 +29,8 @@ const (
 )
 
 type LabelDB struct {
-	db    *sql.DB
-	cache *lru.Cache[string, struct{}]
+	db          *sql.DB
+	initialized *lru.Cache[string, struct{}]
 }
 
 //go:embed sql/table.sql
@@ -47,8 +47,8 @@ func Open(dir string) (*LabelDB, error) {
 		return nil, err
 	}
 	return &LabelDB{
-		db:    db,
-		cache: cache,
+		db:          db,
+		initialized: cache,
 	}, nil
 }
 
@@ -67,7 +67,7 @@ func (ldb *LabelDB) Close() error {
 func (ldb *LabelDB) init(ctx context.Context, t time.Time, namespace string) error {
 	suffix := getTableSuffix(t)
 	lsuffix := getLifetimeTableSuffix(t, namespace)
-	_, found := ldb.cache.Get(lsuffix)
+	_, found := ldb.initialized.Get(lsuffix)
 	if found {
 		return nil
 	}
@@ -97,7 +97,7 @@ func (ldb *LabelDB) init(ctx context.Context, t time.Time, namespace string) err
 		return err
 	}
 
-	ldb.cache.Add(lsuffix, struct{}{})
+	ldb.initialized.Add(lsuffix, struct{}{})
 
 	return nil
 }
