@@ -37,11 +37,10 @@ type LabelDB struct {
 var createTableStmt string
 
 func Open(dir string) (*LabelDB, error) {
-	db, err := sql.Open("sqlite3", "file:"+dir+"/"+DbPath+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=10000")
+	db, err := openDB(dir)
 	if err != nil {
 		return nil, err
 	}
-	setAutoCheckpoint(db, WalAutoCheckpoint)
 	cache, err := lru.New[string, struct{}](InitCacheSize)
 	if err != nil {
 		return nil, err
@@ -50,6 +49,15 @@ func Open(dir string) (*LabelDB, error) {
 		db:          db,
 		initialized: cache,
 	}, nil
+}
+
+func openDB(dir string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite3", "file:"+dir+"/"+DbPath+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=10000")
+	if err != nil {
+		return nil, err
+	}
+	setAutoCheckpoint(db, WalAutoCheckpoint)
+	return db, nil
 }
 
 func setAutoCheckpoint(db *sql.DB, n int) error {
