@@ -72,7 +72,7 @@ func (ldb *LabelDB) Close() error {
 	return ldb.db.Close()
 }
 
-func (ldb *LabelDB) init(ctx context.Context, t time.Time, namespace string) error {
+func (ldb *LabelDB) init(ctx context.Context, tx *sql.Tx, t time.Time, namespace string) error {
 	suffix := getTableSuffix(t)
 	lsuffix := getLifetimeTableSuffix(t, namespace)
 	_, found := ldb.initialized.Get(lsuffix)
@@ -100,7 +100,7 @@ func (ldb *LabelDB) init(ctx context.Context, t time.Time, namespace string) err
 		return err
 	}
 
-	_, err = ldb.db.ExecContext(ctx, sb.String())
+	_, err = tx.ExecContext(ctx, sb.String())
 	if err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func (ldb *LabelDB) RecordMetric(ctx context.Context, metric model.Metric) error
 	err := withTx(ctx, ldb.db, func(tx *sql.Tx) error {
 		trs := getLifetimeRanges(metric.FromTS, metric.ToTS)
 		for _, tr := range trs {
-			err := ldb.init(ctx, tr.From, metric.Namespace)
+			err := ldb.init(ctx, tx, tr.From, metric.Namespace)
 			if err != nil {
 				return err
 			}
@@ -152,7 +152,7 @@ func (ldb *LabelDB) recordMetricToPartition(ctx context.Context, tx *sql.Tx, met
 
 	// metrics
 	s := getTableSuffix(tr.From)
-	row := ldb.db.QueryRowContext(ctx, `
+	row := tx.QueryRowContext(ctx, `
 		SELECT metric_id, from_timestamp, to_timestamp FROM metrics`+s+`
 		WHERE
 			namespace = ? AND
