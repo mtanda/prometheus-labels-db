@@ -63,6 +63,7 @@ func (c *CloudWatchScraper) Run() {
 	for _, ns := range c.namespaces {
 		err := c.scrape(ctx, ns)
 		if err != nil {
+			// ignore error
 			slog.Error("failed to scrape metrics: %s, %v\n", ns, err)
 		}
 	}
@@ -77,6 +78,7 @@ func (c *CloudWatchScraper) Run() {
 				for _, ns := range c.namespaces {
 					err := c.scrape(ctx, ns)
 					if err != nil {
+						// ignore error
 						slog.Error("failed to scrape metrics: %s, %v\n", ns, err)
 					}
 				}
@@ -97,12 +99,14 @@ func (c *CloudWatchScraper) scrape(ctx context.Context, ns string) error {
 	})
 	for paginator.HasMorePages() {
 		if err := c.limiter.Wait(ctx); err != nil {
+			// ignore error
 			continue
 		}
 		output, err := paginator.NextPage(ctx)
 		if err != nil {
+			// ignore error
 			c.apiCallsTotal.WithLabelValues("ListMetrics", ns, "error").Inc()
-			continue // ignore error
+			continue
 		}
 		c.apiCallsTotal.WithLabelValues("ListMetrics", ns, "success").Inc()
 		for _, m := range output.Metrics {

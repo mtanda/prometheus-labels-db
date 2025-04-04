@@ -73,6 +73,7 @@ func (r *Recorder) Run() {
 					now := time.Now()
 					err := r.ldb.RecordMetric(ctx, metric)
 					if err != nil {
+						// ignore error
 						slog.Error("failed to record metric", "metric", metric, "error", err, "retry", i+1)
 						r.recordTotal.WithLabelValues("error").Inc()
 					} else {
