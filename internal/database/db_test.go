@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -509,6 +510,9 @@ func TestQueryMetrics(t *testing.T) {
 			if len(got) != len(tt.want) {
 				t.Fatalf("unexpected length: got=%d, want=%d", len(got), len(tt.want))
 			}
+			sort.Slice(got, func(i, j int) bool {
+				return got[i].MetricID < got[j].MetricID
+			})
 			for i := range got {
 				if !got[i].Equal(tt.want[i]) {
 					t.Fatalf("unexpected query results: got=%+v, want=%+v", got[i], tt.want[i])
