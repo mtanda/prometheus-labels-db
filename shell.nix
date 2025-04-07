@@ -9,5 +9,6 @@ pkgs.mkShell {
     pkgs.delve
     pkgs.pcre
     pkgs.sqlite
+    pkgs.goreleaser
   ];
 }

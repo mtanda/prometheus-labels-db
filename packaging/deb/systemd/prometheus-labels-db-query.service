@@ -1,0 +1,12 @@
+[Unit]
+Description=Prometheus Labels DB Query
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/prometheus-labels-db
+ExecStart=/usr/local/bin/prometheus-labels-db-query --db.dir "$DB_DIR"
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

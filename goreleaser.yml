@@ -1,0 +1,49 @@
+project_name: prometheus-labels-db
+version: 2
+
+builds:
+  - id: prometheus-labels-db-query
+    main: ./cmd/query/main.go
+    binary: prometheus-labels-db-query
+    goos:
+      - linux
+    goarch:
+      - amd64
+    env:
+      - CGO_ENABLED=1
+  - id: prometheus-labels-db-recorder
+    main: ./cmd/recorder/main.go
+    binary: prometheus-labels-db-recorder
+    goos:
+      - linux
+    goarch:
+      - amd64
+    env:
+      - CGO_ENABLED=1
+
+nfpms:
+  - id: prometheus-label-db
+    package_name: prometheus-labels-db
+    description: "Prometheus Labels DB"
+    license: "Apache-2.0"
+    formats:
+      - deb
+    bindir: /usr/local/bin
+    contents:
+      - src: examples/config.yaml
+        dst: /etc/prometheus-labels-db/config.yaml
+        type: config
+      - src: packaging/deb/etc/default/prometheus-labels-db
+        dst: /etc/default/prometheus-labels-db
+        type: config
+      - src: packaging/deb/systemd/prometheus-labels-db-recorder.service
+        dst: /lib/systemd/system/prometheus-labels-db-recorder.service
+      - src: packaging/deb/systemd/prometheus-labels-db-query.service
+        dst: /lib/systemd/system/prometheus-labels-db-query.service
+    scripts:
+      postinstall: packaging/deb/scripts/postinstall.sh
+      preremove: packaging/deb/scripts/preremove.sh
+      postremove: packaging/deb/scripts/postremove.sh
+
+release:
+  disable: true

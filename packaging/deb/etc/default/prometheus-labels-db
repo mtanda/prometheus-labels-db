@@ -1,0 +1,2 @@
+CONFIG_FILE=/etc/prometheus-labels-db/config.yaml
+DB_DIR=./data/
