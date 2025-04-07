@@ -27,6 +27,9 @@ type Dimension struct {
 
 func (ds Dimensions) MarshalJSON() ([]byte, error) {
 	s := make([]string, 0, len(ds))
+	sort.Slice(ds, func(i, j int) bool {
+		return ds[i].Name < ds[j].Name
+	})
 	for _, d := range ds {
 		s = append(s, `"`+d.Name+`": "`+d.Value+`"`)
 	}
