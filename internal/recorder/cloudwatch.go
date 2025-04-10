@@ -13,7 +13,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
-var scrapeInterval = 10 * time.Minute
+var scrapeInterval = 60 * time.Minute
 
 type CloudWatchAPI interface {
 	cloudwatch.ListMetricsAPIClient
