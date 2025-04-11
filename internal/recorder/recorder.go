@@ -13,7 +13,7 @@ import (
 
 const (
 	MaxRetry              = 3
-	WALCheckpointInterval = 10 * time.Minute
+	WALCheckpointInterval = 6 * 60 * time.Minute
 )
 
 type Recorder struct {
