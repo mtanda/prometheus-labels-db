@@ -60,15 +60,15 @@ func (c *CloudWatchScraper) Run() {
 	var ctx context.Context
 	ctx, c.cancel = context.WithCancel(context.Background())
 
-	for _, ns := range c.namespaces {
-		err := c.scrape(ctx, ns)
-		if err != nil {
-			// ignore error
-			slog.Error("failed to scrape metrics: %s, %v\n", ns, err)
-		}
-	}
-
 	go func() {
+		for _, ns := range c.namespaces {
+			err := c.scrape(ctx, ns)
+			if err != nil {
+				// ignore error
+				slog.Error("failed to scrape metrics: %s, %v\n", ns, err)
+			}
+		}
+
 		ticker := time.NewTicker(scrapeInterval)
 		defer ticker.Stop()
 		defer close(c.done)
