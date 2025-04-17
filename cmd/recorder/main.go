@@ -18,7 +18,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/exp/slog"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 )
 
@@ -67,10 +66,15 @@ func (r *Recorder) addTarget(target model.Target) error {
 	client := cloudwatch.NewFromConfig(awsCfg)
 
 	scraper := recorder.NewCloudWatchScraper(client, target.Region, target.Namespace, r.metricsCh, r.limiter, r.registry)
-	scraper.Run()
 	r.scraper = append(r.scraper, scraper)
 
 	return nil
+}
+
+func (r *Recorder) run() {
+	for _, s := range r.scraper {
+		s.Run()
+	}
 }
 
 func (r *Recorder) stop() {
@@ -118,29 +122,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	var errgrp errgroup.Group
 	for _, target := range cfg.Targets {
-		target := target // capture range variable
-		errgrp.Go(func() error {
-			err := recorder.addTarget(target)
-			if err != nil {
-				slog.Error("failed to add target", "target", target, "error", err)
-				return err
-			}
-			<-ctx.Done()
-			return nil
-		})
+		err := recorder.addTarget(target)
+		if err != nil {
+			slog.Error("failed to add target", "target", target, "error", err)
+			os.Exit(1)
+		}
 	}
+	recorder.run()
 
 	<-sig
 	slog.Info("received signal, stopping the recorder...")
-	cancel()
-	err = errgrp.Wait()
-	if err != nil {
-		slog.Error("error adding target", "error", err)
-		os.Exit(1)
-	}
 	recorder.stop()
 	slog.Info("recorder stopped successfully")
 }
