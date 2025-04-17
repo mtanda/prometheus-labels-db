@@ -129,7 +129,6 @@ func main() {
 				return err
 			}
 			<-ctx.Done()
-			recorder.stop()
 			return nil
 		})
 	}
@@ -139,8 +138,9 @@ func main() {
 	cancel()
 	err = errgrp.Wait()
 	if err != nil {
-		slog.Error("error while stopping the recorder", "error", err)
+		slog.Error("error adding target", "error", err)
 		os.Exit(1)
 	}
+	recorder.stop()
 	slog.Info("recorder stopped successfully")
 }
