@@ -38,6 +38,8 @@ nfpms:
         type: config
       - src: packaging/deb/systemd/prometheus-labels-db-recorder.service
         dst: /lib/systemd/system/prometheus-labels-db-recorder.service
+      - src: packaging/deb/systemd/prometheus-labels-db-recorder.timer
+        dst: /lib/systemd/system/prometheus-labels-db-recorder.timer
       - src: packaging/deb/systemd/prometheus-labels-db-query.service
         dst: /lib/systemd/system/prometheus-labels-db-query.service
     scripts:

@@ -3,6 +3,7 @@ package recorder
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -84,6 +85,24 @@ func (c *CloudWatchScraper) Run() {
 				}
 			case <-ctx.Done():
 				return
+			}
+		}
+	}()
+}
+
+func (c *CloudWatchScraper) Oneshot(wg *sync.WaitGroup) {
+	var ctx context.Context
+	ctx, c.cancel = context.WithCancel(context.Background())
+
+	wg.Add(1)
+	go func() {
+		defer close(c.done)
+		defer wg.Done()
+		for _, ns := range c.namespaces {
+			err := c.scrape(ctx, ns)
+			if err != nil {
+				// ignore error
+				slog.Error("failed to scrape metrics: %s, %v\n", ns, err)
 			}
 		}
 	}()

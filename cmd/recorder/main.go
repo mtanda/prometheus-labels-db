@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
@@ -77,6 +79,14 @@ func (r *Recorder) run() {
 	}
 }
 
+func (r *Recorder) oneshot() {
+	var wg sync.WaitGroup
+	for _, s := range r.scraper {
+		s.Oneshot(&wg)
+	}
+	wg.Wait()
+}
+
 func (r *Recorder) stop() {
 	for _, s := range r.scraper {
 		s.Stop()
@@ -92,6 +102,8 @@ func main() {
 	flag.StringVar(&configFile, "config.file", "config.yaml", "Path to the config file")
 	var listenAddress string
 	flag.StringVar(&listenAddress, "web.listen-address", "0.0.0.0:8081", "Address to listen")
+	var oneshot bool
+	flag.BoolVar(&oneshot, "oneshot", false, "Run in oneshot mode")
 	flag.Parse()
 
 	sig := make(chan os.Signal, 1)
@@ -129,10 +141,18 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	recorder.run()
 
-	<-sig
-	slog.Info("received signal, stopping the recorder...")
-	recorder.stop()
-	slog.Info("recorder stopped successfully")
+	if oneshot {
+		recorder.oneshot()
+		recorder.stop()
+		time.Sleep(60 * time.Second) // wait for 60 seconds to scrape metrics
+		slog.Info("oneshot completed")
+	} else {
+		recorder.run()
+
+		<-sig
+		slog.Info("received signal, stopping the recorder...")
+		recorder.stop()
+		slog.Info("recorder stopped successfully")
+	}
 }

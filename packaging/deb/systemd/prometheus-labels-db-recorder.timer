@@ -1,0 +1,9 @@
+[Unit]
+Description=Run prometheus-labels-db-recorder periodically
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target
