@@ -66,7 +66,7 @@ func (c *CloudWatchScraper) Run() {
 			err := c.scrape(ctx, ns)
 			if err != nil {
 				// ignore error
-				slog.Error("failed to scrape metrics: %s, %v\n", ns, err)
+				slog.Error("failed to scrape metrics", "namespace", ns, "error", err)
 			}
 		}
 
@@ -80,7 +80,7 @@ func (c *CloudWatchScraper) Run() {
 					err := c.scrape(ctx, ns)
 					if err != nil {
 						// ignore error
-						slog.Error("failed to scrape metrics: %s, %v\n", ns, err)
+						slog.Error("failed to scrape metrics", "namespace", ns, "error", err)
 					}
 				}
 			case <-ctx.Done():
@@ -102,7 +102,7 @@ func (c *CloudWatchScraper) Oneshot(wg *sync.WaitGroup) {
 			err := c.scrape(ctx, ns)
 			if err != nil {
 				// ignore error
-				slog.Error("failed to scrape metrics: %s, %v\n", ns, err)
+				slog.Error("failed to scrape metrics", "namespace", ns, "error", err)
 			}
 		}
 	}()
