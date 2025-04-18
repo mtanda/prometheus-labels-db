@@ -123,9 +123,8 @@ func (c *CloudWatchScraper) scrape(ctx context.Context, ns string) error {
 		}
 		output, err := paginator.NextPage(ctx)
 		if err != nil {
-			// ignore error
 			c.apiCallsTotal.WithLabelValues("ListMetrics", ns, "error").Inc()
-			continue
+			break
 		}
 		c.apiCallsTotal.WithLabelValues("ListMetrics", ns, "success").Inc()
 		for _, m := range output.Metrics {
