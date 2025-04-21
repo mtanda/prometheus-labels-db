@@ -98,6 +98,15 @@ func (c *CloudWatchScraper) Oneshot(wg *sync.WaitGroup) {
 	go func() {
 		defer close(c.done)
 		defer wg.Done()
+
+		// set initial counter value
+		for _, ns := range c.namespaces {
+			c.apiCallsTotal.WithLabelValues("ListMetrics", ns, "success")
+			c.apiCallsTotal.WithLabelValues("ListMetrics", ns, "error")
+			c.scrapeMetricsTotal.WithLabelValues(ns)
+		}
+		time.Sleep(60 * time.Second) // wait for 60 seconds to scrape metrics
+
 		for _, ns := range c.namespaces {
 			err := c.scrape(ctx, ns)
 			if err != nil {

@@ -62,6 +62,13 @@ func (r *Recorder) Run() {
 		defer close(r.done)
 		checkpointTicker := time.NewTicker(WALCheckpointInterval)
 		defer checkpointTicker.Stop()
+
+		// set initial counter value
+		r.recordTotal.WithLabelValues("success")
+		r.recordTotal.WithLabelValues("error")
+		r.walCheckpointTotal.WithLabelValues("success")
+		r.walCheckpointTotal.WithLabelValues("error")
+
 		for {
 			select {
 			case metric, ok := <-r.metricsCh:
