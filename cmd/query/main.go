@@ -115,5 +115,6 @@ func main() {
 			),
 		),
 	))
+	slog.Info("Starting server", "address", listenAddress)
 	http.ListenAndServe(listenAddress, nil)
 }
