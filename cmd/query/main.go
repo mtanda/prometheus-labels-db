@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/mtanda/prometheus-labels-db/internal/database"
@@ -28,12 +29,24 @@ func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB)
 
 	startParam := query.Get("start")
 	endParam := query.Get("end")
-	start, err := time.ParseInLocation(time.RFC3339, startParam, time.UTC)
+	parseTime := func(param string) (time.Time, error) {
+		t, err := time.ParseInLocation(time.RFC3339, param, time.UTC)
+		if err == nil {
+			return t, nil
+		}
+		unixTime, err := strconv.ParseInt(param, 10, 64)
+		if err != nil {
+			return time.Time{}, err
+		}
+		return time.Unix(unixTime, 0).UTC(), nil
+	}
+
+	start, err := parseTime(startParam)
 	if err != nil {
 		http.Error(w, "failed to parse start timestamp: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	end, err := time.ParseInLocation(time.RFC3339, endParam, time.UTC)
+	end, err := parseTime(endParam)
 	if err != nil {
 		http.Error(w, "failed to parse end timestamp: "+err.Error(), http.StatusBadRequest)
 		return
