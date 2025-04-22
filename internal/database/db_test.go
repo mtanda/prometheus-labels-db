@@ -359,9 +359,9 @@ func TestQueryMetrics(t *testing.T) {
 			from: fromTS,
 			to:   toTS,
 			lm: []*labels.Matcher{
-				labels.MustNewMatcher(labels.MatchEqual, "namespace", "label_match"),
-				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
-				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
+				labels.MustNewMatcher(labels.MatchEqual, "Namespace", "label_match"),
+				labels.MustNewMatcher(labels.MatchEqual, "__name__", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "Region", "test_region"),
 				labels.MustNewMatcher(labels.MatchEqual, "dim1", "dim_value1"),
 			},
 			want: []model.Metric{
@@ -373,9 +373,9 @@ func TestQueryMetrics(t *testing.T) {
 			from: fromTS,
 			to:   toTS,
 			lm: []*labels.Matcher{
-				labels.MustNewMatcher(labels.MatchEqual, "namespace", "label_match2"),
-				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name2"),
-				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region2"),
+				labels.MustNewMatcher(labels.MatchEqual, "Namespace", "label_match2"),
+				labels.MustNewMatcher(labels.MatchEqual, "__name__", "test_name2"),
+				labels.MustNewMatcher(labels.MatchEqual, "Region", "test_region2"),
 				labels.MustNewMatcher(labels.MatchEqual, "dim2", "dim_value2"),
 			},
 			want: []model.Metric{
@@ -387,9 +387,9 @@ func TestQueryMetrics(t *testing.T) {
 			from: fromTS,
 			to:   toTS,
 			lm: []*labels.Matcher{
-				labels.MustNewMatcher(labels.MatchEqual, "namespace", "label_match2"),
-				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name2"),
-				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region2"),
+				labels.MustNewMatcher(labels.MatchEqual, "Namespace", "label_match2"),
+				labels.MustNewMatcher(labels.MatchEqual, "__name__", "test_name2"),
+				labels.MustNewMatcher(labels.MatchEqual, "Region", "test_region2"),
 			},
 			want: []model.Metric{
 				metrics["lm2"],
@@ -401,9 +401,9 @@ func TestQueryMetrics(t *testing.T) {
 			from: fromTS,
 			to:   toTS,
 			lm: []*labels.Matcher{
-				labels.MustNewMatcher(labels.MatchEqual, "namespace", "label_match"),
-				labels.MustNewMatcher(labels.MatchRegexp, "metric_name", "^test_.*$"),
-				labels.MustNewMatcher(labels.MatchRegexp, "region", "^test_.*$"),
+				labels.MustNewMatcher(labels.MatchEqual, "Namespace", "label_match"),
+				labels.MustNewMatcher(labels.MatchRegexp, "__name__", "^test_.*$"),
+				labels.MustNewMatcher(labels.MatchRegexp, "Region", "^test_.*$"),
 				labels.MustNewMatcher(labels.MatchRegexp, "dim1", "^dim_value.*$"),
 			},
 			want: []model.Metric{
@@ -415,9 +415,9 @@ func TestQueryMetrics(t *testing.T) {
 			from: fromTS,
 			to:   toTS,
 			lm: []*labels.Matcher{
-				labels.MustNewMatcher(labels.MatchEqual, "namespace", "label_match2"),
-				labels.MustNewMatcher(labels.MatchRegexp, "metric_name", "^test_.*$"),
-				labels.MustNewMatcher(labels.MatchRegexp, "region", "^test_.*$"),
+				labels.MustNewMatcher(labels.MatchEqual, "Namespace", "label_match2"),
+				labels.MustNewMatcher(labels.MatchRegexp, "__name__", "^test_.*$"),
+				labels.MustNewMatcher(labels.MatchRegexp, "Region", "^test_.*$"),
 			},
 			want: []model.Metric{
 				metrics["lm2"],
@@ -429,9 +429,9 @@ func TestQueryMetrics(t *testing.T) {
 			from: fromTS2,
 			to:   fromTS2.Add(1 * time.Hour),
 			lm: []*labels.Matcher{
-				labels.MustNewMatcher(labels.MatchEqual, "namespace", "time_range_match"),
-				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
-				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
+				labels.MustNewMatcher(labels.MatchEqual, "Namespace", "time_range_match"),
+				labels.MustNewMatcher(labels.MatchEqual, "__name__", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "Region", "test_region"),
 			},
 			want: []model.Metric{
 				metrics["tm1"],
@@ -443,9 +443,9 @@ func TestQueryMetrics(t *testing.T) {
 			from: fromTS.Add(-2 * time.Second),
 			to:   fromTS,
 			lm: []*labels.Matcher{
-				labels.MustNewMatcher(labels.MatchEqual, "namespace", "time_range_match"),
-				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
-				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
+				labels.MustNewMatcher(labels.MatchEqual, "Namespace", "time_range_match"),
+				labels.MustNewMatcher(labels.MatchEqual, "__name__", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "Region", "test_region"),
 			},
 			want: []model.Metric{
 				metrics["tm1"],
@@ -456,9 +456,9 @@ func TestQueryMetrics(t *testing.T) {
 			from: fromTS.Add(-2 * time.Second),
 			to:   fromTS.Add(-1 * time.Second),
 			lm: []*labels.Matcher{
-				labels.MustNewMatcher(labels.MatchEqual, "namespace", "time_range_match"),
-				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
-				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
+				labels.MustNewMatcher(labels.MatchEqual, "Namespace", "time_range_match"),
+				labels.MustNewMatcher(labels.MatchEqual, "__name__", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "Region", "test_region"),
 			},
 			want: []model.Metric{},
 		},
@@ -467,9 +467,9 @@ func TestQueryMetrics(t *testing.T) {
 			from: toTS2,
 			to:   toTS2.Add(2 * time.Second),
 			lm: []*labels.Matcher{
-				labels.MustNewMatcher(labels.MatchEqual, "namespace", "time_range_match"),
-				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
-				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
+				labels.MustNewMatcher(labels.MatchEqual, "Namespace", "time_range_match"),
+				labels.MustNewMatcher(labels.MatchEqual, "__name__", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "Region", "test_region"),
 			},
 			want: []model.Metric{
 				metrics["tm2"],
@@ -480,9 +480,9 @@ func TestQueryMetrics(t *testing.T) {
 			from: toTS2.Add(1 * time.Second),
 			to:   toTS2.Add(2 * time.Second),
 			lm: []*labels.Matcher{
-				labels.MustNewMatcher(labels.MatchEqual, "namespace", "time_range_match"),
-				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
-				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
+				labels.MustNewMatcher(labels.MatchEqual, "Namespace", "time_range_match"),
+				labels.MustNewMatcher(labels.MatchEqual, "__name__", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "Region", "test_region"),
 			},
 			want: []model.Metric{},
 		},
@@ -491,9 +491,9 @@ func TestQueryMetrics(t *testing.T) {
 			from: fromTS3,
 			to:   toTS3,
 			lm: []*labels.Matcher{
-				labels.MustNewMatcher(labels.MatchEqual, "namespace", "time_range_match"),
-				labels.MustNewMatcher(labels.MatchEqual, "metric_name", "test_name"),
-				labels.MustNewMatcher(labels.MatchEqual, "region", "test_region"),
+				labels.MustNewMatcher(labels.MatchEqual, "Namespace", "time_range_match"),
+				labels.MustNewMatcher(labels.MatchEqual, "__name__", "test_name"),
+				labels.MustNewMatcher(labels.MatchEqual, "Region", "test_region"),
 				labels.MustNewMatcher(labels.MatchEqual, "dim4", "dim_value4"),
 			},
 			want: []model.Metric{

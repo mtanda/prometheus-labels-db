@@ -352,12 +352,17 @@ func buildLabelConditions(lm []*labels.Matcher) ([]string, []interface{}, string
 	for _, m := range lm {
 		ln := m.Name
 		lv := m.Value
-		if ln == "namespace" {
+		if ln == "Namespace" {
 			namespace = lv
 		}
-		if ln == "namespace" || ln == "metric_name" || ln == "region" {
-			ln = `m.` + ln
-		} else {
+		switch ln {
+		case "Namespace":
+			ln = `m.namespace`
+		case "__name__":
+			ln = `m.metric_name`
+		case "Region":
+			ln = `m.region`
+		default:
 			ln = `IFNULL(m.dimensions->>'$.` + ln + `', "")`
 		}
 		switch m.Type {

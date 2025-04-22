@@ -92,9 +92,9 @@ func (a Metric) UniqueKey() string {
 
 func (a Metric) Labels() map[string]string {
 	labels := map[string]string{
-		"metric_name": a.MetricName,
-		"namespace":   a.Namespace,
-		"region":      a.Region,
+		"__name__":  a.MetricName,
+		"Namespace": a.Namespace,
+		"Region":    a.Region,
 	}
 	for _, d := range a.Dimensions {
 		labels[d.Name] = d.Value
