@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -92,14 +93,31 @@ func (a Metric) UniqueKey() string {
 
 func (a Metric) Labels() map[string]string {
 	labels := map[string]string{
-		"__name__":  a.MetricName,
-		"Namespace": a.Namespace,
-		"Region":    a.Region,
+		"__name__":   safeMetricName(a.MetricName),
+		"MetricName": a.MetricName, // store original metric name
+		"Namespace":  a.Namespace,
+		"Region":     a.Region,
 	}
 	for _, d := range a.Dimensions {
 		labels[d.Name] = d.Value
 	}
 	return labels
+}
+
+var (
+	// Prometheus metric names must match the regex [a-zA-Z_:][a-zA-Z0-9_:]*.
+	invalidMetricNamePattern = regexp.MustCompile(`[^a-zA-Z0-9_:]`)
+)
+
+func safeMetricName(name string) string {
+	if len(name) == 0 {
+		return ""
+	}
+	name = invalidMetricNamePattern.ReplaceAllString(name, "_")
+	if '0' <= name[0] && name[0] <= '9' {
+		name = "_" + name[1:]
+	}
+	return name
 }
 
 type MetricLifetime struct {

@@ -360,6 +360,8 @@ func buildLabelConditions(lm []*labels.Matcher) ([]string, []interface{}, string
 			ln = `m.namespace`
 		case "__name__":
 			ln = `m.metric_name`
+		case "MetricName":
+			ln = `m.metric_name`
 		case "Region":
 			ln = `m.region`
 		default:

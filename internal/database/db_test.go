@@ -339,6 +339,7 @@ func TestQueryMetrics(t *testing.T) {
 		"tm1": generateMetrics("time_range_match", "test_name", "test_region", "dim1", "dim_value1", fromTS, toTS),
 		"tm2": generateMetrics("time_range_match", "test_name", "test_region", "dim3", "dim_value3", fromTS2, toTS2),
 		"tm3": generateMetrics("time_range_match", "test_name", "test_region", "dim4", "dim_value4", fromTS3, toTS3),
+		"im1": generateMetrics("safe_metric_name_match", "0test-name", "test_region", "dim1", "dim_value1", fromTS, toTS),
 	}
 	for _, m := range metrics {
 		err = db.RecordMetric(ctx, m)
@@ -498,6 +499,34 @@ func TestQueryMetrics(t *testing.T) {
 			},
 			want: []model.Metric{
 				metrics["tm3"],
+			},
+		},
+		{
+			name: "[safe metric name] exact match 1",
+			from: fromTS,
+			to:   toTS,
+			lm: []*labels.Matcher{
+				labels.MustNewMatcher(labels.MatchEqual, "Namespace", "safe_metric_name_match"),
+				labels.MustNewMatcher(labels.MatchEqual, "__name__", "0test-name"),
+				labels.MustNewMatcher(labels.MatchEqual, "Region", "test_region"),
+				labels.MustNewMatcher(labels.MatchEqual, "dim1", "dim_value1"),
+			},
+			want: []model.Metric{
+				metrics["im1"],
+			},
+		},
+		{
+			name: "[safe metric name] exact match 2",
+			from: fromTS,
+			to:   toTS,
+			lm: []*labels.Matcher{
+				labels.MustNewMatcher(labels.MatchEqual, "Namespace", "safe_metric_name_match"),
+				labels.MustNewMatcher(labels.MatchEqual, "MetricName", "0test-name"),
+				labels.MustNewMatcher(labels.MatchEqual, "Region", "test_region"),
+				labels.MustNewMatcher(labels.MatchEqual, "dim1", "dim_value1"),
+			},
+			want: []model.Metric{
+				metrics["im1"],
 			},
 		},
 	}
