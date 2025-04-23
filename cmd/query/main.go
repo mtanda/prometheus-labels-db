@@ -129,5 +129,9 @@ func main() {
 		),
 	))
 	slog.Info("Starting server", "address", listenAddress)
-	http.ListenAndServe(listenAddress, nil)
+	err = http.ListenAndServe(listenAddress, nil)
+	if err != nil {
+		slog.Error("failed to start server", "error", err)
+		os.Exit(1)
+	}
 }

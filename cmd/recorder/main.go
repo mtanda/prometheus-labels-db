@@ -119,7 +119,12 @@ func main() {
 			collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 		)
 		http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
-		http.ListenAndServe(listenAddress, nil)
+		slog.Info("Starting server", "address", listenAddress)
+		err := http.ListenAndServe(listenAddress, nil)
+		if err != nil {
+			slog.Error("failed to start server", "error", err)
+			os.Exit(1)
+		}
 	}()
 
 	recorder, err := newRecorder(dbDir, reg)
