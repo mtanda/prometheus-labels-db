@@ -287,6 +287,9 @@ JOIN metrics` + s + ` m ON ml.metric_id = m.metric_id
 WHERE ` + strings.Join(append(timeCondition, labelCondition...), " AND ")
 		rows, err := db.QueryContext(ctx, q, append(timeArgs, labelArgs...)...)
 		if err != nil {
+			if strings.Contains(err.Error(), "no such table: ") {
+				continue
+			}
 			return ms, err
 		}
 		defer rows.Close()
