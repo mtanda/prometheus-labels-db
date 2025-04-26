@@ -67,7 +67,7 @@ func (ldb *LabelDB) getDB(t time.Time) (*sql.DB, error) {
 		return nil, err
 	}
 	setAutoCheckpoint(db, WalAutoCheckpoint)
-	ldb.db[suffix] = db
+	ldb.db[dbPath] = db
 
 	return db, nil
 }
