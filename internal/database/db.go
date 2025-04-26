@@ -273,48 +273,54 @@ func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*
 	mm := make(map[string]*model.Metric)
 	trs := getLifetimeRanges(from, to)
 	for _, tr := range trs {
-		db, err := ldb.getDB(tr.From)
-		if err != nil {
-			return ms, err
-		}
-		timeCondition, timeArgs := buildTimeConditions(tr)
+		err = func() error {
+			db, err := ldb.getDB(tr.From)
+			if err != nil {
+				return err
+			}
+			timeCondition, timeArgs := buildTimeConditions(tr)
 
-		s := getTableSuffix(tr.From)
-		ls := getLifetimeTableSuffix(tr.From, namespace)
-		q := `SELECT m.*
+			s := getTableSuffix(tr.From)
+			ls := getLifetimeTableSuffix(tr.From, namespace)
+			q := `SELECT m.*
 FROM metrics_lifetime` + ls + ` ml
 JOIN metrics` + s + ` m ON ml.metric_id = m.metric_id
 WHERE ` + strings.Join(append(timeCondition, labelCondition...), " AND ")
-		rows, err := db.QueryContext(ctx, q, append(timeArgs, labelArgs...)...)
+			rows, err := db.QueryContext(ctx, q, append(timeArgs, labelArgs...)...)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			for rows.Next() {
+				var m model.Metric
+				var dim []byte
+				var fromTS int64
+				var toTS int64
+				var updatedAt int64
+				rows.Scan(&m.MetricID, &m.Namespace, &m.MetricName, &m.Region, &dim, &fromTS, &toTS, &updatedAt)
+				err = json.Unmarshal(dim, &m.Dimensions)
+				if err != nil {
+					return err
+				}
+				m.FromTS = time.Unix(fromTS, 0).UTC()
+				m.ToTS = time.Unix(toTS, 0).UTC()
+				m.UpdatedAt = time.Unix(updatedAt, 0).UTC()
+				k := m.UniqueKey()
+				if _, ok := mm[k]; ok {
+					mm[k].FromTS = time.Unix(min(m.FromTS.Unix(), mm[k].FromTS.Unix()), 0).UTC()
+					mm[k].ToTS = time.Unix(max(m.ToTS.Unix(), mm[k].ToTS.Unix()), 0).UTC()
+				} else {
+					mm[k] = &m
+				}
+			}
+			return nil
+		}()
 		if err != nil {
 			if strings.Contains(err.Error(), "no such table: ") {
 				continue
 			}
 			return ms, err
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var m model.Metric
-			var dim []byte
-			var fromTS int64
-			var toTS int64
-			var updatedAt int64
-			rows.Scan(&m.MetricID, &m.Namespace, &m.MetricName, &m.Region, &dim, &fromTS, &toTS, &updatedAt)
-			err = json.Unmarshal(dim, &m.Dimensions)
-			if err != nil {
-				return ms, err
-			}
-			m.FromTS = time.Unix(fromTS, 0).UTC()
-			m.ToTS = time.Unix(toTS, 0).UTC()
-			m.UpdatedAt = time.Unix(updatedAt, 0).UTC()
-			k := m.UniqueKey()
-			if _, ok := mm[k]; ok {
-				mm[k].FromTS = time.Unix(min(m.FromTS.Unix(), mm[k].FromTS.Unix()), 0).UTC()
-				mm[k].ToTS = time.Unix(max(m.ToTS.Unix(), mm[k].ToTS.Unix()), 0).UTC()
-			} else {
-				mm[k] = &m
-			}
 		}
 	}
 	for _, m := range mm {
