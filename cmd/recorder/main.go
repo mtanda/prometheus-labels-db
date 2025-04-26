@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,12 +15,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	"github.com/mtanda/prometheus-labels-db/internal/database"
+	"github.com/mtanda/prometheus-labels-db/internal/importer"
 	"github.com/mtanda/prometheus-labels-db/internal/model"
 	"github.com/mtanda/prometheus-labels-db/internal/recorder"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"golang.org/x/exp/slog"
+	"github.com/prometheus/prometheus/tsdb"
 	"golang.org/x/time/rate"
 )
 
@@ -95,6 +97,33 @@ func (r *Recorder) stop() {
 	r.recorder.Stop()
 }
 
+func importOldData(dbDir string, importDB string, importSandbox string, logger *slog.Logger, reg *prometheus.Registry) error {
+	ctx := context.Background()
+
+	ldb, err := database.Open(dbDir)
+	if err != nil {
+		return err
+	}
+	defer ldb.Close()
+	db, err := tsdb.OpenDBReadOnly(
+		importDB,
+		importSandbox,
+		logger,
+	)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	importer := importer.New(dbDir, ldb, db, reg)
+	err = importer.Import(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func main() {
 	var dbDir string
 	flag.StringVar(&dbDir, "db.dir", "./data/", "Path to the database directory")
@@ -104,6 +133,11 @@ func main() {
 	flag.StringVar(&listenAddress, "web.listen-address", "0.0.0.0:8081", "Address to listen")
 	var oneshot bool
 	flag.BoolVar(&oneshot, "oneshot", false, "Run in oneshot mode")
+	// importer
+	var importDB string
+	flag.StringVar(&importDB, "import.db", "./tsdb/", "Path to the import source database")
+	var importSandbox string
+	flag.StringVar(&importSandbox, "import.sandbox", "./tsdb_sandbox/", "Path to the sandbox of import source database")
 	flag.Parse()
 
 	sig := make(chan os.Signal, 1)
@@ -150,6 +184,14 @@ func main() {
 	if oneshot {
 		recorder.oneshot()
 		recorder.stop()
+
+		// TODO: remove importer when all imports are completed
+		err = importOldData(dbDir, importDB, importSandbox, logger, reg)
+		if err != nil {
+			// ignore error
+			slog.Error("failed to import", "err", err)
+		}
+
 		time.Sleep(60 * time.Second) // wait for 60 seconds to scrape metrics
 		slog.Info("oneshot completed")
 	} else {
