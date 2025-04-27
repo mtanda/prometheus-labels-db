@@ -18,6 +18,10 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 )
 
+const (
+	unusedDBCheckInterval = 10 * time.Minute
+)
+
 func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB) {
 	query := r.URL.Query()
 	matchParam := query["match[]"]
@@ -92,6 +96,20 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+
+	// check unused db periodically
+	ticker := time.NewTicker(unusedDBCheckInterval)
+	defer ticker.Stop()
+	go func() {
+		for range ticker.C {
+			err := db.CleanupUnusedDB(context.Background())
+			if err != nil {
+				slog.Error("failed to cleanup unused DB", "error", err)
+			} else {
+				slog.Info("cleanup unused DB completed")
+			}
+		}
+	}()
 
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(
