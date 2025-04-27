@@ -54,7 +54,8 @@ func TestInsertMetric(t *testing.T) {
 
 	// check metrics table
 	var rows *sql.Rows
-	rows, err = db.db["_20241111_20250202"].QueryContext(ctx, "SELECT * FROM metrics_20241111_20250202")
+	dbPath := fmt.Sprintf(DbPathPattern, "_20241111_20250202")
+	rows, err = db.dbCache[dbPath].db.QueryContext(ctx, "SELECT * FROM metrics_20241111_20250202")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +96,7 @@ func TestInsertMetric(t *testing.T) {
 	}
 
 	// check metrics_lifetime table
-	rows, err = db.db["_20241111_20250202"].QueryContext(ctx, "SELECT * FROM metrics_lifetime_20241111_20250202"+"_"+namespace)
+	rows, err = db.dbCache[dbPath].db.QueryContext(ctx, "SELECT * FROM metrics_lifetime_20241111_20250202"+"_"+namespace)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +174,8 @@ func TestUpdateMetric(t *testing.T) {
 
 	// check metrics table
 	var rows *sql.Rows
-	rows, err = db.db["_20241111_20250202"].QueryContext(ctx, "SELECT * FROM metrics_20241111_20250202")
+	dbPath := fmt.Sprintf(DbPathPattern, "_20241111_20250202")
+	rows, err = db.dbCache[dbPath].db.QueryContext(ctx, "SELECT * FROM metrics_20241111_20250202")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +216,7 @@ func TestUpdateMetric(t *testing.T) {
 	}
 
 	// check metrics_lifetime table
-	rows, err = db.db["_20241111_20250202"].QueryContext(ctx, "SELECT * FROM metrics_lifetime_20241111_20250202"+"_"+namespace)
+	rows, err = db.dbCache[dbPath].db.QueryContext(ctx, "SELECT * FROM metrics_lifetime_20241111_20250202"+"_"+namespace)
 	if err != nil {
 		t.Fatal(err)
 	}

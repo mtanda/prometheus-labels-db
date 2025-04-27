@@ -29,10 +29,14 @@ const (
 	IdleTimeout       = 1 * time.Hour
 )
 
+type DBCache struct {
+	db       *sql.DB
+	lastUsed time.Time
+}
+
 type LabelDB struct {
 	dir         string
-	db          map[string]*sql.DB
-	lastUsed    map[string]time.Time
+	dbCache     map[string]DBCache
 	initialized *lru.Cache[string, struct{}]
 }
 
@@ -46,19 +50,18 @@ func Open(dir string) (*LabelDB, error) {
 	}
 	return &LabelDB{
 		dir:         dir,
-		db:          make(map[string]*sql.DB),
-		lastUsed:    make(map[string]time.Time),
+		dbCache:     make(map[string]DBCache),
 		initialized: cache,
 	}, nil
 }
 
 func (ldb *LabelDB) getDB(t time.Time) (*sql.DB, error) {
 	suffix := getTableSuffix(t)
-	ldb.lastUsed[suffix] = time.Now().UTC()
 
 	dbPath := fmt.Sprintf(DbPathPattern, suffix)
-	if db, ok := ldb.db[dbPath]; ok {
-		return db, nil
+	if dbCache, ok := ldb.dbCache[dbPath]; ok {
+		dbCache.lastUsed = time.Now().UTC()
+		return dbCache.db, nil
 	}
 
 	// TODO: support mode=ro for query command
@@ -67,7 +70,10 @@ func (ldb *LabelDB) getDB(t time.Time) (*sql.DB, error) {
 		return nil, err
 	}
 	setAutoCheckpoint(db, WalAutoCheckpoint)
-	ldb.db[dbPath] = db
+	ldb.dbCache[dbPath] = DBCache{
+		db:       db,
+		lastUsed: time.Now().UTC(),
+	}
 
 	return db, nil
 }
@@ -82,8 +88,8 @@ func setAutoCheckpoint(db *sql.DB, n int) error {
 
 func (ldb *LabelDB) Close() error {
 	var allErr error
-	for _, db := range ldb.db {
-		if err := db.Close(); err != nil {
+	for _, dbCache := range ldb.dbCache {
+		if err := dbCache.db.Close(); err != nil {
 			// ignore error
 			slog.Error("failed to close db", "err", err)
 			allErr = errors.Join(allErr, err)
@@ -341,8 +347,8 @@ WHERE ` + strings.Join(append(timeCondition, labelCondition...), " AND ")
 func (ldb *LabelDB) WalCheckpoint(ctx context.Context) error {
 	checkpointPRAGMA := `PRAGMA wal_checkpoint(TRUNCATE)`
 	var ok, pages, moved int
-	for _, db := range ldb.db {
-		if err := db.QueryRow(checkpointPRAGMA).Scan(&ok, &pages, &moved); err != nil {
+	for _, dbCache := range ldb.dbCache {
+		if err := dbCache.db.QueryRow(checkpointPRAGMA).Scan(&ok, &pages, &moved); err != nil {
 			return err
 		}
 	}
@@ -351,20 +357,19 @@ func (ldb *LabelDB) WalCheckpoint(ctx context.Context) error {
 }
 
 func (ldb *LabelDB) CleanupUnusedDB(ctx context.Context) error {
-	for suffix, db := range ldb.db {
-		if ldb.lastUsed[suffix].Add(IdleTimeout).After(time.Now().UTC()) {
+	for dbPath, dbCache := range ldb.dbCache {
+		if dbCache.lastUsed.Add(IdleTimeout).After(time.Now().UTC()) {
 			// still used
 			continue
 		}
 
-		if err := db.Close(); err != nil {
+		if err := dbCache.db.Close(); err != nil {
 			// ignore error
 			slog.Error("failed to close db", "err", err)
 			continue
 		}
-		delete(ldb.db, suffix)
-		delete(ldb.lastUsed, suffix)
-		slog.Info("close unused db", "suffix", suffix)
+		delete(ldb.dbCache, dbPath)
+		slog.Info("close unused db", "dbPath", dbPath)
 	}
 	return nil
 }
