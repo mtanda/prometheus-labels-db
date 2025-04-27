@@ -20,6 +20,7 @@ import (
 	"github.com/mtanda/prometheus-labels-db/internal/recorder"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/prometheus/tsdb"
 	"golang.org/x/time/rate"
@@ -182,15 +183,25 @@ func main() {
 	}
 
 	if oneshot {
+		recordLastSuccess := promauto.With(reg).NewGauge(prometheus.GaugeOpts{
+			Name: "recorder_last_record_success_timestamp_seconds",
+			Help: "Last success timestamp of recording metrics operations",
+		})
 		recorder.oneshot()
 		recorder.stop()
+		recordLastSuccess.Set(float64(time.Now().UTC().Unix()))
 
 		// TODO: remove importer when all imports are completed
+		importLastSuccess := promauto.With(reg).NewGauge(prometheus.GaugeOpts{
+			Name: "importer_last_import_success_timestamp_seconds",
+			Help: "Last success timestamp of importing metrics operations",
+		})
 		err = importOldData(dbDir, importDB, importSandbox, logger, reg)
 		if err != nil {
 			// ignore error
 			slog.Error("failed to import", "err", err)
 		}
+		importLastSuccess.Set(float64(time.Now().UTC().Unix()))
 
 		time.Sleep(60 * time.Second) // wait for 60 seconds to scrape metrics
 		slog.Info("oneshot completed")
