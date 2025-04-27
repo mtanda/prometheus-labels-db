@@ -534,7 +534,7 @@ func TestQueryMetrics(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := db.QueryMetrics(ctx, tt.from, tt.to, tt.lm)
+			got, err := db.QueryMetrics(ctx, tt.from, tt.to, tt.lm, 0)
 			if err != nil {
 				t.Fatal(err)
 			}

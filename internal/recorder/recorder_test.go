@@ -51,7 +51,7 @@ func TestRecord(t *testing.T) {
 
 	result, err := ldb.QueryMetrics(ctx, from, to, []*labels.Matcher{
 		labels.MustNewMatcher(labels.MatchEqual, "Namespace", "test_namespace"),
-	})
+	}, 0)
 	if len(result) != metricsCount {
 		t.Fatalf("unexpected metrics count: %d", len(result))
 	}
