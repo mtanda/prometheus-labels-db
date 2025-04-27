@@ -77,7 +77,7 @@ func (r *Recorder) Run() {
 					return
 				}
 				for i := 0; i < MaxRetry; i++ {
-					now := time.Now()
+					now := time.Now().UTC()
 					err := r.ldb.RecordMetric(ctx, metric)
 					if err != nil {
 						// ignore error
@@ -91,7 +91,7 @@ func (r *Recorder) Run() {
 				}
 			case <-checkpointTicker.C:
 				slog.Info("WAL checkpoint triggered")
-				now := time.Now()
+				now := time.Now().UTC()
 				err := r.ldb.WalCheckpoint(ctx)
 				if err != nil {
 					// ignore error

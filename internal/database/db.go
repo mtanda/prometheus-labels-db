@@ -54,7 +54,7 @@ func Open(dir string) (*LabelDB, error) {
 
 func (ldb *LabelDB) getDB(t time.Time) (*sql.DB, error) {
 	suffix := getTableSuffix(t)
-	ldb.lastUsed[suffix] = time.Now()
+	ldb.lastUsed[suffix] = time.Now().UTC()
 
 	dbPath := fmt.Sprintf(DbPathPattern, suffix)
 	if db, ok := ldb.db[dbPath]; ok {
@@ -352,7 +352,7 @@ func (ldb *LabelDB) WalCheckpoint(ctx context.Context) error {
 
 func (ldb *LabelDB) CleanupUnusedDB(ctx context.Context) error {
 	for suffix, db := range ldb.db {
-		if ldb.lastUsed[suffix].Add(IdleTimeout).After(time.Now()) {
+		if ldb.lastUsed[suffix].Add(IdleTimeout).After(time.Now().UTC()) {
 			// still used
 			continue
 		}

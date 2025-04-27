@@ -91,8 +91,8 @@ func (im *Importer) Import(ctx context.Context) error {
 	ss := querier.Select(ctx, false, nil, matchers...)
 
 	c := 0
-	importStartTime := time.Now()
-	lastReportTime := time.Now()
+	importStartTime := time.Now().UTC()
+	lastReportTime := time.Now().UTC()
 	for ss.Next() {
 		series := ss.At()
 		ls := series.Labels()
@@ -148,7 +148,7 @@ func (im *Importer) Import(ctx context.Context) error {
 		c++
 		if c%reportInterval == 0 {
 			slog.Info(fmt.Sprintf("import %d records", reportInterval), "day", start, "duration", time.Since(lastReportTime).Seconds(), "count", c)
-			lastReportTime = time.Now()
+			lastReportTime = time.Now().UTC()
 		}
 	}
 	if ss.Err() != nil {
