@@ -333,24 +333,31 @@ WHERE ` + strings.Join(append(timeCondition, labelCondition...), " AND ")
 func (ldb *LabelDB) WalCheckpoint(ctx context.Context) error {
 	checkpointPRAGMA := `PRAGMA wal_checkpoint(TRUNCATE)`
 	var ok, pages, moved int
-	for suffix, db := range ldb.db {
+	for _, db := range ldb.db {
 		if err := db.QueryRow(checkpointPRAGMA).Scan(&ok, &pages, &moved); err != nil {
 			return err
 		}
-
-		// clean up unused db connections
-		if ldb.lastUsed[suffix].Add(IdleTimeout).Before(time.Now()) {
-			if err := db.Close(); err != nil {
-				// ignore error
-				slog.Error("failed to close db", "err", err)
-				continue
-			}
-			delete(ldb.db, suffix)
-			delete(ldb.lastUsed, suffix)
-			slog.Info("close unused db", "suffix", suffix)
-		}
 	}
 	slog.Debug("WAL checkpoint", "ok", ok, "pages", pages, "moved", moved)
+	return nil
+}
+
+func (ldb *LabelDB) CleanupUnusedDB(ctx context.Context) error {
+	for suffix, db := range ldb.db {
+		if ldb.lastUsed[suffix].Add(IdleTimeout).After(time.Now()) {
+			// still used
+			continue
+		}
+
+		if err := db.Close(); err != nil {
+			// ignore error
+			slog.Error("failed to close db", "err", err)
+			continue
+		}
+		delete(ldb.db, suffix)
+		delete(ldb.lastUsed, suffix)
+		slog.Info("close unused db", "suffix", suffix)
+	}
 	return nil
 }
 

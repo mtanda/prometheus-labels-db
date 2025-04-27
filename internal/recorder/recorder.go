@@ -102,6 +102,14 @@ func (r *Recorder) Run() {
 					r.walCheckpointTotal.WithLabelValues("success").Inc()
 					r.walCheckpointDurations.Observe(time.Since(now).Seconds())
 				}
+
+				err = r.ldb.CleanupUnusedDB(ctx)
+				if err != nil {
+					// ignore error
+					slog.Error("failed to cleanup unused DB", "error", err)
+				} else {
+					slog.Info("cleanup unused DB completed")
+				}
 			}
 		}
 	}()
