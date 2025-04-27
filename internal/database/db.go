@@ -260,7 +260,7 @@ func (ldb *LabelDB) recordMetricToPartition(ctx context.Context, tx *sql.Tx, met
 	return nil
 }
 
-func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*labels.Matcher) ([]model.Metric, error) {
+func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*labels.Matcher, limit int) ([]model.Metric, error) {
 	ms := []model.Metric{}
 
 	// convert prometheus label matchers to sql where clause
@@ -286,7 +286,12 @@ func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*
 FROM metrics_lifetime` + ls + ` ml
 JOIN metrics` + s + ` m ON ml.metric_id = m.metric_id
 WHERE ` + strings.Join(append(timeCondition, labelCondition...), " AND ")
-			rows, err := db.QueryContext(ctx, q, append(timeArgs, labelArgs...)...)
+			var limitArgs []interface{}
+			if limit > 0 {
+				q += ` LIMIT ?`
+				limitArgs = append(limitArgs, limit)
+			}
+			rows, err := db.QueryContext(ctx, q, append(append(timeArgs, labelArgs...), limitArgs...)...)
 			if err != nil {
 				return err
 			}
@@ -325,6 +330,9 @@ WHERE ` + strings.Join(append(timeCondition, labelCondition...), " AND ")
 	}
 	for _, m := range mm {
 		ms = append(ms, *m)
+	}
+	if limit > 0 && len(ms) > limit {
+		ms = ms[:limit]
 	}
 
 	return ms, nil

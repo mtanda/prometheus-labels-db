@@ -55,12 +55,21 @@ func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB)
 		http.Error(w, "failed to parse end timestamp: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	limit := 0
+	limitParam := query.Get("limit")
+	if limitParam != "" {
+		limit, err = strconv.Atoi(limitParam)
+		if err != nil {
+			http.Error(w, "failed to parse limit: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 
 	ctx := context.Background()
 
 	data := []map[string]string{}
 	for _, matcher := range matchers {
-		metrics, err := db.QueryMetrics(ctx, start, end, matcher)
+		metrics, err := db.QueryMetrics(ctx, start, end, matcher, limit)
 		if err != nil {
 			http.Error(w, "failed to query metrics: "+err.Error(), http.StatusInternalServerError)
 			return
