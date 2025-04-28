@@ -3,7 +3,7 @@ version: 2
 
 builds:
   - id: prometheus-labels-db-query
-    main: ./cmd/query/main.go
+    main: ./cmd/query/
     binary: prometheus-labels-db-query
     goos:
       - linux
@@ -12,7 +12,7 @@ builds:
     env:
       - CGO_ENABLED=1
   - id: prometheus-labels-db-recorder
-    main: ./cmd/recorder/main.go
+    main: ./cmd/recorder/
     binary: prometheus-labels-db-recorder
     goos:
       - linux
