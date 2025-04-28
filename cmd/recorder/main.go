@@ -37,6 +37,32 @@ func openDB(dbDir string) (*database.LabelDB, error) {
 	return ldb, nil
 }
 
+func setupRecorder(dbDir string, configFile string, reg *prometheus.Registry) (*Recorder, error) {
+	ldb, err := openDB(dbDir)
+	if err != nil {
+		return nil, err
+	}
+
+	recorder, err := newRecorder(ldb, reg)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg, err := model.LoadConfig(configFile)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, target := range cfg.Targets {
+		err := recorder.addTarget(target)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return recorder, nil
+}
+
 func importOldData(dbDir string, importDB string, importSandbox string, logger *slog.Logger, reg *prometheus.Registry) error {
 	ctx := context.Background()
 
@@ -107,31 +133,10 @@ func main() {
 		}
 	}()
 
-	// setup recorder
-	ldb, err := openDB(dbDir)
+	recorder, err := setupRecorder(dbDir, configFile, reg)
 	if err != nil {
-		slog.Error("failed to open database", "error", err)
+		slog.Error("failed to setup recorder", "error", err)
 		os.Exit(1)
-	}
-
-	recorder, err := newRecorder(ldb, reg)
-	if err != nil {
-		slog.Error("failed to create recorder", "error", err)
-		os.Exit(1)
-	}
-
-	cfg, err := model.LoadConfig(configFile)
-	if err != nil {
-		slog.Error("failed to load config", "error", err)
-		os.Exit(1)
-	}
-
-	for _, target := range cfg.Targets {
-		err := recorder.addTarget(target)
-		if err != nil {
-			slog.Error("failed to add target", "target", target, "error", err)
-			os.Exit(1)
-		}
 	}
 
 	if oneshot {

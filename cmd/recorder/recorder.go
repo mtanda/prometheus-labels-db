@@ -17,6 +17,7 @@ type Recorder struct {
 	metricsCh chan model.Metric
 	limiter   *rate.Limiter
 	registry  *prometheus.Registry
+	ldb       *database.LabelDB
 	scraper   []*recorder.CloudWatchScraper
 	recorder  *recorder.Recorder
 }
@@ -33,6 +34,7 @@ func newRecorder(ldb *database.LabelDB, registry *prometheus.Registry) (*Recorde
 		metricsCh: metricsCh,
 		limiter:   limiter,
 		registry:  registry,
+		ldb:       ldb,
 		recorder:  recorder,
 	}, nil
 }
@@ -70,4 +72,5 @@ func (r *Recorder) stop() {
 	}
 	close(r.metricsCh)
 	r.recorder.Stop()
+	r.ldb.Close()
 }
