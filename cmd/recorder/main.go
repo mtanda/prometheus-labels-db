@@ -34,11 +34,23 @@ type Recorder struct {
 	recorder  *recorder.Recorder
 }
 
-func newRecorder(dbDir string, registry *prometheus.Registry) (*Recorder, error) {
+func newRecorder(ldb *database.LabelDB, registry *prometheus.Registry) (*Recorder, error) {
 	metricsCh := make(chan model.Metric, 1000)
 	ListMetricsDefaultMaxTPS := 25
 	limiter := rate.NewLimiter(rate.Limit(ListMetricsDefaultMaxTPS/2), 1)
 
+	recorder := recorder.New(ldb, metricsCh, registry)
+	recorder.Run()
+
+	return &Recorder{
+		metricsCh: metricsCh,
+		limiter:   limiter,
+		registry:  registry,
+		recorder:  recorder,
+	}, nil
+}
+
+func openDB(dbDir string) (*database.LabelDB, error) {
 	if stat, err := os.Stat(dbDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dbDir, 0o777); err != nil {
 			return nil, fmt.Errorf("failed to create directory: %v", err)
@@ -51,16 +63,7 @@ func newRecorder(dbDir string, registry *prometheus.Registry) (*Recorder, error)
 	if err != nil {
 		return nil, err
 	}
-
-	recorder := recorder.New(ldb, metricsCh, registry)
-	recorder.Run()
-
-	return &Recorder{
-		metricsCh: metricsCh,
-		limiter:   limiter,
-		registry:  registry,
-		recorder:  recorder,
-	}, nil
+	return ldb, nil
 }
 
 func (r *Recorder) addTarget(target model.Target) error {
@@ -162,7 +165,14 @@ func main() {
 		}
 	}()
 
-	recorder, err := newRecorder(dbDir, reg)
+	// setup recorder
+	ldb, err := openDB(dbDir)
+	if err != nil {
+		slog.Error("failed to open database", "error", err)
+		os.Exit(1)
+	}
+
+	recorder, err := newRecorder(ldb, reg)
 	if err != nil {
 		slog.Error("failed to create recorder", "error", err)
 		os.Exit(1)
