@@ -42,7 +42,7 @@ func New(baseDir string, ldb *database.LabelDB, db *tsdb.DBReadOnly, registry *p
 		Help: "Total number of importing metrics operations",
 	}, []string{"status"})
 
-	statePath := fmt.Sprintf("%s%s", baseDir, importerStatePath)
+	statePath := fmt.Sprintf("%s/%s", baseDir, importerStatePath)
 	state, err := loadState(statePath)
 	if err != nil {
 		panic(err)
