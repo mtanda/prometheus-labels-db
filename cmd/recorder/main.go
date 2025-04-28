@@ -61,6 +61,12 @@ func importOldData(dbDir string, importDB string, importSandbox string, logger *
 		return err
 	}
 
+	importLastSuccess := promauto.With(reg).NewGauge(prometheus.GaugeOpts{
+		Name: "importer_last_import_success_timestamp_seconds",
+		Help: "Last success timestamp of importing metrics operations",
+	})
+	importLastSuccess.Set(float64(time.Now().UTC().Unix()))
+
 	return nil
 }
 
@@ -138,16 +144,11 @@ func main() {
 		recordLastSuccess.Set(float64(time.Now().UTC().Unix()))
 
 		// TODO: remove importer when all imports are completed
-		importLastSuccess := promauto.With(reg).NewGauge(prometheus.GaugeOpts{
-			Name: "importer_last_import_success_timestamp_seconds",
-			Help: "Last success timestamp of importing metrics operations",
-		})
 		err = importOldData(dbDir, importDB, importSandbox, logger, reg)
 		if err != nil {
 			// ignore error
 			slog.Error("failed to import", "err", err)
 		}
-		importLastSuccess.Set(float64(time.Now().UTC().Unix()))
 
 		time.Sleep(60 * time.Second) // wait for 60 seconds to scrape metrics
 		slog.Info("oneshot completed")
