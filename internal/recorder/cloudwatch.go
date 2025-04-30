@@ -149,9 +149,11 @@ func (c *CloudWatchScraper) scrape(ctx context.Context, ns string) error {
 				MetricName: *m.MetricName,
 				Region:     c.region,
 				Dimensions: dim,
-				FromTS:     now.Add(-(60*3 + 50) * time.Minute),
-				ToTS:       now,
-				UpdatedAt:  now,
+				// https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_ListMetrics.html
+				// There is a low probability that the returned results include metrics with last published data as much as 50 minutes more than the specified time interval.
+				FromTS:    now.Add(-(60*3 + 50) * time.Minute),
+				ToTS:      now,
+				UpdatedAt: now,
 			}
 			c.scrapeMetricsTotal.WithLabelValues(ns).Inc()
 		}

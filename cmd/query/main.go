@@ -11,18 +11,22 @@ import (
 	"time"
 
 	"github.com/mtanda/prometheus-labels-db/internal/database"
+	"github.com/mtanda/prometheus-labels-db/internal/fresh_metrics"
+	"github.com/mtanda/prometheus-labels-db/internal/model"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/prometheus/promql/parser"
+	"golang.org/x/time/rate"
 )
 
 const (
 	unusedDBCheckInterval = 10 * time.Minute
 )
 
-func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB) {
+func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB, fmc *fresh_metrics.FreshMetrics) {
+	// parse query
 	query := r.URL.Query()
 	matchParam := query["match[]"]
 	matchers, err := parser.ParseMetricSelectors(matchParam)
@@ -65,19 +69,36 @@ func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB)
 		}
 	}
 
-	ctx := context.Background()
+	// get fresh metrics
+	ctx := r.Context()
+	result := make(map[string]*model.Metric)
+	// if the end time is within 3 hours and 50 minutes from now, query fresh metrics
+	now := time.Now().UTC()
+	if end.After(now.Add(-(60*3 + 50) * time.Minute)) {
+		for _, matcher := range matchers {
+			result, err = fmc.QueryMetrics(ctx, matcher, result)
+			if err != nil {
+				http.Error(w, "failed to query fresh metrics: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+	}
 
-	data := []map[string]string{}
+	// get metrics from database, and merge with fresh metrics
 	for _, matcher := range matchers {
-		metrics, err := db.QueryMetrics(ctx, start, end, matcher, limit)
+		result, err = db.QueryMetrics(ctx, start, end, matcher, limit, result)
 		if err != nil {
 			http.Error(w, "failed to query metrics: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+	}
 
-		for _, metric := range metrics {
-			data = append(data, metric.Labels())
-		}
+	data := []map[string]string{}
+	for _, metric := range result {
+		data = append(data, metric.Labels())
+	}
+	if limit > 0 && len(data) > limit {
+		data = data[:limit]
 	}
 
 	response := map[string]interface{}{
@@ -121,6 +142,9 @@ func main() {
 	}()
 
 	reg := prometheus.NewRegistry()
+	ListMetricsDefaultMaxTPS := 25
+	limiter := rate.NewLimiter(rate.Limit(ListMetricsDefaultMaxTPS/5), 1)
+	fmc := fresh_metrics.New(limiter, reg)
 	reg.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
@@ -150,7 +174,7 @@ func main() {
 			promhttp.InstrumentHandlerResponseSize(
 				responseSize.MustCurryWith(prometheus.Labels{"handler": "/api/v1/series"}),
 				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					seriesHandler(w, r, db)
+					seriesHandler(w, r, db, fmc)
 				}),
 			),
 		),

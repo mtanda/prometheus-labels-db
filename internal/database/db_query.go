@@ -11,17 +11,14 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 )
 
-func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*labels.Matcher, limit int) ([]model.Metric, error) {
-	ms := []model.Metric{}
-
+func (ldb *LabelDB) QueryMetrics(ctx context.Context, from, to time.Time, lm []*labels.Matcher, limit int, result map[string]*model.Metric) (map[string]*model.Metric, error) {
 	// convert prometheus label matchers to sql where clause
 	labelCondition, labelArgs, namespace, err := buildLabelConditions(lm)
 	if err != nil {
-		return ms, err
+		return result, err
 	}
 
 	// TODO: support multiple namespaces
-	mm := make(map[string]*model.Metric)
 	trs := getLifetimeRanges(from, to)
 	for _, tr := range trs {
 		err = func() error {
@@ -63,11 +60,11 @@ WHERE ` + strings.Join(append(timeCondition, labelCondition...), " AND ")
 				m.ToTS = time.Unix(toTS, 0).UTC()
 				m.UpdatedAt = time.Unix(updatedAt, 0).UTC()
 				k := m.UniqueKey()
-				if _, ok := mm[k]; ok {
-					mm[k].FromTS = time.Unix(min(m.FromTS.Unix(), mm[k].FromTS.Unix()), 0).UTC()
-					mm[k].ToTS = time.Unix(max(m.ToTS.Unix(), mm[k].ToTS.Unix()), 0).UTC()
+				if _, ok := result[k]; ok {
+					result[k].FromTS = time.Unix(min(m.FromTS.Unix(), result[k].FromTS.Unix()), 0).UTC()
+					result[k].ToTS = time.Unix(max(m.ToTS.Unix(), result[k].ToTS.Unix()), 0).UTC()
 				} else {
-					mm[k] = &m
+					result[k] = &m
 				}
 			}
 			return nil
@@ -76,17 +73,12 @@ WHERE ` + strings.Join(append(timeCondition, labelCondition...), " AND ")
 			if strings.Contains(err.Error(), "no such table: ") {
 				continue
 			}
-			return ms, err
+			return result, err
 		}
 	}
-	for _, m := range mm {
-		ms = append(ms, *m)
-	}
-	if limit > 0 && len(ms) > limit {
-		ms = ms[:limit]
-	}
 
-	return ms, nil
+	// trim result to limit at the caller side
+	return result, nil
 }
 
 func buildLabelConditions(lm []*labels.Matcher) ([]string, []interface{}, string, error) {
