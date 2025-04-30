@@ -11,7 +11,6 @@ require (
 	github.com/prometheus/client_golang v1.21.0-rc.0
 	github.com/prometheus/prometheus v0.302.1
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/exp v0.0.0-20240119083558-1b970713d09a
 	golang.org/x/time v0.9.0
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -75,6 +74,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/goleak v1.3.0 // indirect
 	golang.org/x/crypto v0.32.0 // indirect
+	golang.org/x/exp v0.0.0-20240119083558-1b970713d09a // indirect
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/oauth2 v0.25.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
