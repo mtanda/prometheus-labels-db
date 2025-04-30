@@ -40,7 +40,7 @@ func newRecorder(ldb *database.LabelDB, registry *prometheus.Registry) (*Recorde
 }
 
 func (r *Recorder) addTarget(target model.Target) error {
-	awsCfg, err := config.LoadDefaultConfig(context.Background(), config.WithEC2IMDSRegion())
+	awsCfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(target.Region))
 	if err != nil {
 		return err
 	}
