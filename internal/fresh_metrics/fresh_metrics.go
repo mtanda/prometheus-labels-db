@@ -42,6 +42,7 @@ func New(limiter *rate.Limiter, registry *prometheus.Registry) *FreshMetrics {
 	}, []string{"region", "api", "namespace", "status"})
 	cache := expirable.NewLRU[string, []map[string]string](maxCacheSize, nil, cacheTTL)
 	return &FreshMetrics{
+		CwClient:      make(map[string]CloudWatchAPI),
 		limiter:       limiter,
 		cache:         cache,
 		apiCallsTotal: apiCallsTotal,
@@ -51,7 +52,8 @@ func New(limiter *rate.Limiter, registry *prometheus.Registry) *FreshMetrics {
 func (f *FreshMetrics) QueryMetrics(ctx context.Context, lm []*labels.Matcher, result map[string]*model.Metric) (map[string]*model.Metric, error) {
 	namespace, metricName, region, dimConditions := parseMatcher(lm)
 	if namespace == "" || metricName == "" || region == "" {
-		return nil, fmt.Errorf("namespace, metricName, and region are required")
+		slog.Error("namespace, metricName, and region are required")
+		return result, nil
 	}
 
 	if _, ok := f.CwClient[region]; !ok {

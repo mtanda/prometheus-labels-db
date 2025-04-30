@@ -82,6 +82,7 @@ func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB,
 				return
 			}
 		}
+		slog.Info("queried fresh metrics", "count", len(result))
 	}
 
 	// get metrics from database, and merge with fresh metrics
