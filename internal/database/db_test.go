@@ -534,9 +534,13 @@ func TestQueryMetrics(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := db.QueryMetrics(ctx, tt.from, tt.to, tt.lm, 0)
+			result, err := db.QueryMetrics(ctx, tt.from, tt.to, tt.lm, 0, map[string]*model.Metric{})
 			if err != nil {
 				t.Fatal(err)
+			}
+			got := []*model.Metric{}
+			for _, metric := range result {
+				got = append(got, metric)
 			}
 			if len(got) != len(tt.want) {
 				t.Fatalf("unexpected length: got=%d, want=%d", len(got), len(tt.want))
