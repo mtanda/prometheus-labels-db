@@ -26,9 +26,21 @@ const (
 )
 
 func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB, fmc *fresh_metrics.FreshMetrics) {
+	var matchParam []string
+	var start, end time.Time
+	var limit int
+	// log request
+	now := time.Now().UTC()
+	isSuccess := false
+	defer func() {
+		slog.Info("querying series",
+			"match", matchParam, "start", start, "end", end, "limit", limit,
+			"durationMs", time.Since(now).Seconds()*1000, "status", isSuccess)
+	}()
+
 	// parse query
 	query := r.URL.Query()
-	matchParam := query["match[]"]
+	matchParam = query["match[]"]
 	matchers, err := parser.ParseMetricSelectors(matchParam)
 	if err != nil {
 		http.Error(w, "invalid match[] parameter: "+err.Error(), http.StatusBadRequest)
@@ -49,17 +61,17 @@ func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB,
 		return time.Unix(unixTime, 0).UTC(), nil
 	}
 
-	start, err := parseTime(startParam)
+	start, err = parseTime(startParam)
 	if err != nil {
 		http.Error(w, "failed to parse start timestamp: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	end, err := parseTime(endParam)
+	end, err = parseTime(endParam)
 	if err != nil {
 		http.Error(w, "failed to parse end timestamp: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	limit := 0
+	limit = 0
 	limitParam := query.Get("limit")
 	if limitParam != "" {
 		limit, err = strconv.Atoi(limitParam)
@@ -73,7 +85,6 @@ func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB,
 	ctx := r.Context()
 	result := make(map[string]*model.Metric)
 	// if the end time is within 3 hours and 50 minutes from now, query fresh metrics
-	now := time.Now().UTC()
 	if end.After(now.Add(-(60*3 + 50) * time.Minute)) {
 		for _, matcher := range matchers {
 			result, err = fmc.QueryMetrics(ctx, matcher, result)
@@ -107,6 +118,7 @@ func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB,
 		"data":   data,
 	}
 
+	isSuccess = true
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
