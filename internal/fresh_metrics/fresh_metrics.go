@@ -29,10 +29,11 @@ type CloudWatchAPI interface {
 }
 
 type FreshMetrics struct {
-	CwClient      map[string]CloudWatchAPI
-	limiter       *rate.Limiter
-	cache         *expirable.LRU[string, []map[string]string]
-	apiCallsTotal *prometheus.CounterVec
+	CwClient         map[string]CloudWatchAPI
+	limiter          *rate.Limiter
+	cache            *expirable.LRU[string, []map[string]string]
+	apiCallsTotal    *prometheus.CounterVec
+	apiCallDurations prometheus.Histogram
 }
 
 func New(limiter *rate.Limiter, registry *prometheus.Registry) *FreshMetrics {
@@ -40,12 +41,18 @@ func New(limiter *rate.Limiter, registry *prometheus.Registry) *FreshMetrics {
 		Name: "fresh_metrics_cloudwatch_api_calls_total",
 		Help: "Total number of CloudWatch API calls",
 	}, []string{"region", "api", "namespace", "status"})
+	apiCallDurations := promauto.With(registry).NewHistogram(prometheus.HistogramOpts{
+		Name:    "fresh_metrics_cloudwatch_api_call_duration_seconds",
+		Help:    "Duration of CloudWatch API call in seconds",
+		Buckets: prometheus.ExponentialBuckets(0.01, 2, 20),
+	})
 	cache := expirable.NewLRU[string, []map[string]string](maxCacheSize, nil, cacheTTL)
 	return &FreshMetrics{
-		CwClient:      make(map[string]CloudWatchAPI),
-		limiter:       limiter,
-		cache:         cache,
-		apiCallsTotal: apiCallsTotal,
+		CwClient:         make(map[string]CloudWatchAPI),
+		limiter:          limiter,
+		cache:            cache,
+		apiCallsTotal:    apiCallsTotal,
+		apiCallDurations: apiCallDurations,
 	}
 }
 
@@ -200,6 +207,7 @@ func (f *FreshMetrics) listMetrics(ctx context.Context, region string, namespace
 	if !ok {
 		return nil, fmt.Errorf("CloudWatch client not found for region: %s", region)
 	}
+	now := time.Now().UTC()
 	paginator := cloudwatch.NewListMetricsPaginator(client, input)
 	for paginator.HasMorePages() {
 		if err := f.limiter.Wait(ctx); err != nil {
@@ -213,5 +221,6 @@ func (f *FreshMetrics) listMetrics(ctx context.Context, region string, namespace
 		f.apiCallsTotal.WithLabelValues(region, "ListMetrics", namespace, "success").Inc()
 		result.Metrics = append(result.Metrics, output.Metrics...)
 	}
+	f.apiCallDurations.Observe(time.Since(now).Seconds())
 	return result, nil
 }
