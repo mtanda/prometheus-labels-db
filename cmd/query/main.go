@@ -80,6 +80,15 @@ func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB,
 			return
 		}
 	}
+	debugMode := false
+	debugParam := query.Get("debug")
+	if debugParam != "" {
+		debugMode, err = strconv.ParseBool(debugParam)
+		if err != nil {
+			http.Error(w, "failed to parse debug: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 
 	// get fresh metrics
 	ctx := r.Context()
@@ -116,6 +125,10 @@ func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB,
 	response := map[string]interface{}{
 		"status": "success",
 		"data":   data,
+	}
+
+	if debugMode {
+		slog.Info("query response", "response", response)
 	}
 
 	isSuccess = true

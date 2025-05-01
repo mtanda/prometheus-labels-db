@@ -59,7 +59,7 @@ func New(limiter *rate.Limiter, registry *prometheus.Registry) *FreshMetrics {
 func (f *FreshMetrics) QueryMetrics(ctx context.Context, lm []*labels.Matcher, result map[string]*model.Metric) (map[string]*model.Metric, error) {
 	namespace, metricName, region, dimConditions := parseMatcher(lm)
 	if namespace == "" || metricName == "" || region == "" {
-		slog.Error("namespace, metricName, and region are required")
+		slog.Warn("namespace, metricName, and region are required")
 		return result, nil
 	}
 
