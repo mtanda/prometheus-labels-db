@@ -150,7 +150,7 @@ func main() {
 	flag.StringVar(&listenAddress, "web.listen-address", "0.0.0.0:8080", "Address to listen")
 	flag.Parse()
 
-	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	slog.SetDefault(logger)
 
 	db, err := database.Open(dbDir)
