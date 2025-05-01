@@ -33,7 +33,7 @@ func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB,
 	now := time.Now().UTC()
 	isSuccess := false
 	defer func() {
-		slog.Info("querying series",
+		slog.Info("request log",
 			"match", matchParam, "start", start, "end", end, "limit", limit,
 			"durationMs", time.Since(now).Seconds()*1000, "status", isSuccess)
 	}()
@@ -102,7 +102,13 @@ func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB,
 				return
 			}
 		}
-		slog.Info("queried fresh metrics", "count", len(result))
+		if debugMode {
+			data := []map[string]string{}
+			for _, metric := range result {
+				data = append(data, metric.Labels())
+			}
+			slog.Info("[debug] fresh metrics result", "result", data, "count", len(data))
+		}
 	}
 
 	// get metrics from database, and merge with fresh metrics
@@ -118,6 +124,11 @@ func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB,
 	for _, metric := range result {
 		data = append(data, metric.Labels())
 	}
+
+	if debugMode {
+		slog.Info("[debug] query result", "result", data, "count", len(data))
+	}
+
 	if limit > 0 && len(data) > limit {
 		data = data[:limit]
 	}
@@ -125,10 +136,6 @@ func seriesHandler(w http.ResponseWriter, r *http.Request, db *database.LabelDB,
 	response := map[string]interface{}{
 		"status": "success",
 		"data":   data,
-	}
-
-	if debugMode {
-		slog.Info("query response", "response", response)
 	}
 
 	isSuccess = true
@@ -148,7 +155,7 @@ func main() {
 
 	db, err := database.Open(dbDir)
 	if err != nil {
-		slog.Error("failed to open database", "error", err)
+		slog.Error("failed to open database", "error", err, "dbDir", dbDir)
 		os.Exit(1)
 	}
 	defer db.Close()

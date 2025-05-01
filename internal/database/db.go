@@ -76,10 +76,10 @@ func (ldb *LabelDB) getDB(t time.Time) (*sql.DB, error) {
 
 func (ldb *LabelDB) Close() error {
 	var allErr error
-	for _, dbCache := range ldb.dbCache {
+	for dbPath, dbCache := range ldb.dbCache {
 		if err := dbCache.db.Close(); err != nil {
 			// ignore error
-			slog.Error("failed to close db", "err", err)
+			slog.Error("failed to close db", "err", err, "dbPath", dbPath)
 			allErr = errors.Join(allErr, err)
 		}
 	}
@@ -95,7 +95,7 @@ func (ldb *LabelDB) CleanupUnusedDB(ctx context.Context) error {
 
 		if err := dbCache.db.Close(); err != nil {
 			// ignore error
-			slog.Error("failed to close db", "err", err)
+			slog.Error("failed to close db", "err", err, "dbPath", dbPath)
 			continue
 		}
 		delete(ldb.dbCache, dbPath)

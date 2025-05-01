@@ -147,7 +147,7 @@ func (im *Importer) Import(ctx context.Context) error {
 
 		c++
 		if c%reportInterval == 0 {
-			slog.Info(fmt.Sprintf("import %d records", reportInterval), "day", start, "duration", time.Since(lastReportTime).Seconds(), "count", c)
+			slog.Info(fmt.Sprintf("import %d records", reportInterval), "day", start, "durationSec", time.Since(lastReportTime).Seconds(), "count", c)
 			lastReportTime = time.Now().UTC()
 		}
 	}
@@ -155,14 +155,14 @@ func (im *Importer) Import(ctx context.Context) error {
 		return err
 	}
 
-	slog.Info("import 1 day records", "day", start, "duration", time.Since(importStartTime).Seconds(), "count", c)
+	slog.Info("import 1 day records", "day", start, "durationSec", time.Since(importStartTime).Seconds(), "count", c)
 
 	// move to next day
 	im.state.Day = start.Format(time.RFC3339)
 	err = saveState(im.statePath, im.state)
 	if err != nil {
 		// ignore error
-		slog.Error("failed to save import state", "day", start, "error", err)
+		slog.Error("failed to save import state", "error", err, "day", start)
 	}
 
 	return nil
