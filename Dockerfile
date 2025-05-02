@@ -22,7 +22,7 @@ ENV PATH="/usr/local/go/bin:$PATH"
 # Build the package
 WORKDIR /app
 COPY . .
-ARG SNAPSHOT=true
+ARG SNAPSHOT=false
 RUN if [ "$SNAPSHOT" = "true" ]; then \
     goreleaser release --snapshot --clean; \
     else \
