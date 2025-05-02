@@ -46,6 +46,3 @@ nfpms:
       postinstall: packaging/deb/scripts/postinstall.sh
       preremove: packaging/deb/scripts/preremove.sh
       postremove: packaging/deb/scripts/postremove.sh
-
-release:
-  disable: true
