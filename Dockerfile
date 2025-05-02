@@ -23,6 +23,7 @@ ENV PATH="/usr/local/go/bin:$PATH"
 WORKDIR /app
 COPY . .
 ARG SNAPSHOT=false
+ARG GITHUB_TOKEN
 RUN if [ "$SNAPSHOT" = "true" ]; then \
     goreleaser release --snapshot --clean; \
     else \
