@@ -32,6 +32,10 @@ func (ds Dimensions) MarshalJSON() ([]byte, error) {
 		return ds[i].Name < ds[j].Name
 	})
 	for _, d := range ds {
+		// if __name__ is accidentally included, skip it
+		if d.Name == "__name__" {
+			continue
+		}
 		s = append(s, `"`+d.Name+`": "`+d.Value+`"`)
 	}
 	return []byte("{" + strings.Join(s, ", ") + "}"), nil
@@ -46,6 +50,10 @@ func (ds *Dimensions) UnmarshalJSON(b []byte) error {
 	}
 
 	for k, v := range data {
+		// if __name__ is accidentally included, skip it
+		if k == "__name__" {
+			continue
+		}
 		*ds = append(*ds, Dimension{
 			Name:  k,
 			Value: v.(string),
