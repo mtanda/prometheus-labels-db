@@ -135,6 +135,8 @@ func (im *Importer) Import(ctx context.Context) error {
 			err := im.ldb.RecordMetric(ctx, metric)
 			if err != nil {
 				im.importTotal.WithLabelValues("error").Inc()
+				sleepDuration := time.Duration(100*(1<<i)) * time.Millisecond // 0.1s, 0.2s, 0.4s, etc.
+				time.Sleep(sleepDuration)
 			} else {
 				im.importTotal.WithLabelValues("success").Inc()
 				break

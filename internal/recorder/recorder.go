@@ -83,6 +83,8 @@ func (r *Recorder) Run() {
 						// ignore error
 						slog.Error("failed to record metric", "error", err, "metric", metric, "retry", i+1)
 						r.recordTotal.WithLabelValues("error").Inc()
+						sleepDuration := time.Duration(100*(1<<i)) * time.Millisecond // 0.1s, 0.2s, 0.4s, etc.
+						time.Sleep(sleepDuration)
 					} else {
 						r.recordTotal.WithLabelValues("success").Inc()
 						r.recordDurations.Observe(time.Since(now).Seconds())
