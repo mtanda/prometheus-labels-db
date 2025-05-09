@@ -114,6 +114,7 @@ func parseMatcher(lm []*labels.Matcher) (string, string, string, []*labels.Match
 	region := ""
 	dimConditions := make([]*labels.Matcher, 0)
 	for _, m := range lm {
+		// TODO: expect m.Type == labels.MatchEqual for Namespace / MetricName / Region, but not always, I'll fix it later
 		switch m.Name {
 		case "Namespace":
 			namespace = m.Value
@@ -122,7 +123,17 @@ func parseMatcher(lm []*labels.Matcher) (string, string, string, []*labels.Match
 		case "MetricName":
 			metricName = m.Value
 		case "Region":
-			region = m.Value
+			// TODO: fix this, this is a workaround for the case when Region!=""
+			if m.Type != labels.MatchEqual {
+				var err error
+				region, err = model.GetDefaultRegion()
+				if err != nil {
+					slog.Error("failed to get default region", "error", err)
+					region = ""
+				}
+			} else {
+				region = m.Value
+			}
 		default:
 			dimConditions = append(dimConditions, m)
 		}

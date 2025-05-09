@@ -33,7 +33,7 @@ func LoadConfig(configFile string) (*Config, error) {
 
 	for i, target := range cfg.Targets {
 		if target.Region == "" {
-			region, err := getDefaultRegion()
+			region, err := GetDefaultRegion()
 			if err != nil {
 				return nil, err
 			}
@@ -46,7 +46,7 @@ func LoadConfig(configFile string) (*Config, error) {
 
 var defaultRegion string
 
-func getDefaultRegion() (string, error) {
+func GetDefaultRegion() (string, error) {
 	if defaultRegion != "" {
 		return defaultRegion, nil
 	}
