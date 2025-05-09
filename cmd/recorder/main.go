@@ -152,11 +152,13 @@ func main() {
 		err = importOldData(dbDir, importDB, importSandbox, logger, reg)
 		if err != nil {
 			// ignore error
+			// don't exit the program to record the metrics
 			slog.Error("failed to import", "err", err)
+		} else {
+			slog.Info("oneshot completed")
 		}
 
 		time.Sleep(60 * time.Second) // wait for 60 seconds to scrape metrics
-		slog.Info("oneshot completed")
 	} else {
 		recorder.run()
 
