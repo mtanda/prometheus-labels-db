@@ -21,15 +21,16 @@ type CloudWatchAPI interface {
 }
 
 type CloudWatchScraper struct {
-	cwClient           CloudWatchAPI
-	region             string
-	namespaces         []string
-	metricsCh          chan model.Metric
-	limiter            *rate.Limiter
-	cancel             context.CancelFunc
-	done               chan struct{}
-	scrapeMetricsTotal *prometheus.CounterVec
-	apiCallsTotal      *prometheus.CounterVec
+	cwClient            CloudWatchAPI
+	region              string
+	namespaces          []string
+	metricsCh           chan model.Metric
+	limiter             *rate.Limiter
+	cancel              context.CancelFunc
+	done                chan struct{}
+	scrapeMetricsTotal  *prometheus.CounterVec
+	scrapeWarningsTotal prometheus.Counter
+	apiCallsTotal       *prometheus.CounterVec
 }
 
 func NewCloudWatchScraper(client CloudWatchAPI, region string, ns []string, ch chan model.Metric, limiter *rate.Limiter, registry *prometheus.Registry) *CloudWatchScraper {
@@ -41,19 +42,24 @@ func NewCloudWatchScraper(client CloudWatchAPI, region string, ns []string, ch c
 		Name: "scraper_metrics_total",
 		Help: "Total number of scraped metrics",
 	}, []string{"namespace"})
+	scrapeWarningsTotal := promauto.With(reg).NewCounter(prometheus.CounterOpts{
+		Name: "scraper_scrape_warnings_total",
+		Help: "Total number of metrics scrape warnings",
+	})
 	apiCallsTotal := promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 		Name: "scraper_cloudwatch_api_calls_total",
 		Help: "Total number of CloudWatch API calls",
 	}, []string{"api", "namespace", "status"})
 	return &CloudWatchScraper{
-		cwClient:           client,
-		region:             region,
-		namespaces:         ns,
-		metricsCh:          ch,
-		limiter:            limiter,
-		done:               make(chan struct{}),
-		scrapeMetricsTotal: scrapeMetricsTotal,
-		apiCallsTotal:      apiCallsTotal,
+		cwClient:            client,
+		region:              region,
+		namespaces:          ns,
+		metricsCh:           ch,
+		limiter:             limiter,
+		done:                make(chan struct{}),
+		scrapeMetricsTotal:  scrapeMetricsTotal,
+		scrapeWarningsTotal: scrapeWarningsTotal,
+		apiCallsTotal:       apiCallsTotal,
 	}
 }
 
@@ -67,6 +73,7 @@ func (c *CloudWatchScraper) Run() {
 			if err != nil {
 				// ignore error
 				slog.Error("failed to scrape metrics", "error", err, "namespace", ns)
+				c.scrapeWarningsTotal.Inc()
 			}
 		}
 
@@ -81,6 +88,7 @@ func (c *CloudWatchScraper) Run() {
 					if err != nil {
 						// ignore error
 						slog.Error("failed to scrape metrics", "error", err, "namespace", ns)
+						c.scrapeWarningsTotal.Inc()
 					}
 				}
 			case <-ctx.Done():
@@ -112,6 +120,7 @@ func (c *CloudWatchScraper) Oneshot(wg *sync.WaitGroup) {
 			if err != nil {
 				// ignore error
 				slog.Error("failed to scrape metrics", "error", err, "namespace", ns)
+				c.scrapeWarningsTotal.Inc()
 			}
 		}
 	}()
@@ -129,11 +138,15 @@ func (c *CloudWatchScraper) scrape(ctx context.Context, ns string) error {
 		if err := c.limiter.Wait(ctx); err != nil {
 			// ignore error
 			slog.Error("failed to wait for limiter", "error", err)
+			c.scrapeWarningsTotal.Inc()
 			continue
 		}
 		output, err := paginator.NextPage(ctx)
 		if err != nil {
+			// ignore error
+			slog.Error("failed to list metrics", "error", err, "namespace", ns)
 			c.apiCallsTotal.WithLabelValues("ListMetrics", ns, "error").Inc()
+			c.scrapeWarningsTotal.Inc()
 			break
 		}
 		c.apiCallsTotal.WithLabelValues("ListMetrics", ns, "success").Inc()

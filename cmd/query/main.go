@@ -167,6 +167,7 @@ func main() {
 		for range ticker.C {
 			err := db.CleanupUnusedDB(context.Background())
 			if err != nil {
+				// ignore error
 				slog.Error("failed to cleanup unused DB", "error", err)
 			} else {
 				slog.Info("cleanup unused DB completed")

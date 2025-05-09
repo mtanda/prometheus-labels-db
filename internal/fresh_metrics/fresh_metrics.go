@@ -146,6 +146,7 @@ func matchAllConditions(dims map[string]string, dimConditions []*labels.Matcher)
 		case labels.MatchRegexp:
 			r, err := regexp.Compile(dc.Value)
 			if err != nil {
+				// ignore error
 				slog.Error("failed to compile regexp", "error", err)
 				return false
 			}
@@ -155,6 +156,7 @@ func matchAllConditions(dims map[string]string, dimConditions []*labels.Matcher)
 		case labels.MatchNotRegexp:
 			r, err := regexp.Compile(dc.Value)
 			if err != nil {
+				// ignore error
 				slog.Error("failed to compile regexp", "error", err)
 				return false
 			}

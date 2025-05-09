@@ -24,6 +24,7 @@ type Recorder struct {
 	limiter                *rate.Limiter
 	done                   chan struct{}
 	recordTotal            *prometheus.CounterVec
+	recordWarningsTotal    prometheus.Counter
 	recordDurations        prometheus.Histogram
 	walCheckpointTotal     *prometheus.CounterVec
 	walCheckpointDurations prometheus.Histogram
@@ -34,6 +35,10 @@ func New(ldb *database.LabelDB, ch chan model.Metric, registry *prometheus.Regis
 		Name: "recorder_record_total",
 		Help: "Total number of recording metrics operations",
 	}, []string{"status"})
+	recordWarningsTotal := promauto.With(registry).NewCounter(prometheus.CounterOpts{
+		Name: "recorder_record_warnings_total",
+		Help: "Total number of recording metrics warnings",
+	})
 	recordDurations := promauto.With(registry).NewHistogram(prometheus.HistogramOpts{
 		Name:    "recorder_record_duration_seconds",
 		Help:    "Duration of recording metrics in seconds",
@@ -55,6 +60,7 @@ func New(ldb *database.LabelDB, ch chan model.Metric, registry *prometheus.Regis
 		limiter:                limiter,
 		done:                   make(chan struct{}),
 		recordTotal:            recordTotal,
+		recordWarningsTotal:    recordWarningsTotal,
 		recordDurations:        recordDurations,
 		walCheckpointTotal:     walCheckpointTotal,
 		walCheckpointDurations: walCheckpointDurations,
@@ -84,6 +90,7 @@ func (r *Recorder) Run() {
 				if err := r.limiter.Wait(ctx); err != nil {
 					// ignore error
 					slog.Error("failed to wait for limiter", "error", err)
+					r.recordWarningsTotal.Inc()
 					continue
 				}
 				for i := 0; i < MaxRetry; i++ {
