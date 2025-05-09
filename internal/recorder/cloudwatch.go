@@ -128,6 +128,7 @@ func (c *CloudWatchScraper) scrape(ctx context.Context, ns string) error {
 	for paginator.HasMorePages() {
 		if err := c.limiter.Wait(ctx); err != nil {
 			// ignore error
+			slog.Error("failed to wait for limiter", "error", err)
 			continue
 		}
 		output, err := paginator.NextPage(ctx)

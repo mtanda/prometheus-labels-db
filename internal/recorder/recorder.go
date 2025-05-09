@@ -9,16 +9,19 @@ import (
 	"github.com/mtanda/prometheus-labels-db/internal/model"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"golang.org/x/time/rate"
 )
 
 const (
 	MaxRetry              = 3
 	WALCheckpointInterval = 6 * 60 * time.Minute
+	recordRateLimit       = 200
 )
 
 type Recorder struct {
 	ldb                    *database.LabelDB
 	metricsCh              chan model.Metric
+	limiter                *rate.Limiter
 	done                   chan struct{}
 	recordTotal            *prometheus.CounterVec
 	recordDurations        prometheus.Histogram
@@ -45,9 +48,11 @@ func New(ldb *database.LabelDB, ch chan model.Metric, registry *prometheus.Regis
 		Help:    "Duration of wal checkpoint in seconds",
 		Buckets: prometheus.ExponentialBuckets(0.01, 2, 20),
 	})
+	limiter := rate.NewLimiter(rate.Limit(recordRateLimit), 1)
 	return &Recorder{
 		ldb:                    ldb,
 		metricsCh:              ch,
+		limiter:                limiter,
 		done:                   make(chan struct{}),
 		recordTotal:            recordTotal,
 		recordDurations:        recordDurations,
@@ -75,6 +80,11 @@ func (r *Recorder) Run() {
 				if !ok {
 					// channel is closed, stop the recorder
 					return
+				}
+				if err := r.limiter.Wait(ctx); err != nil {
+					// ignore error
+					slog.Error("failed to wait for limiter", "error", err)
+					continue
 				}
 				for i := 0; i < MaxRetry; i++ {
 					now := time.Now().UTC()

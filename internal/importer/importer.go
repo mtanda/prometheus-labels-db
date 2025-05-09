@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/tsdb"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -78,6 +79,7 @@ func (im *Importer) Import(ctx context.Context) error {
 		return nil
 	}
 
+	limiter := rate.NewLimiter(150, 1)
 	slog.Info("import start", "day", start)
 	querier, err := im.db.Querier(start.UnixMilli(), end.UnixMilli())
 	if err != nil {
@@ -130,6 +132,9 @@ func (im *Importer) Import(ctx context.Context) error {
 			UpdatedAt:  end,
 		}
 
+		if err := limiter.Wait(ctx); err != nil {
+			return err
+		}
 		i := 0
 		for ; i < MaxRetry; i++ {
 			err := im.ldb.RecordMetric(ctx, metric)
