@@ -171,7 +171,7 @@ func (im *Importer) Import(ctx context.Context) error {
 }
 
 func loadState(statePath string) (importerState, error) {
-	now := time.Now().UTC().Truncate(time.Hour * 24)
+	now := time.Now().UTC().Truncate(time.Hour * 24).Add(+time.Hour * 24)
 	state := importerState{
 		Day: now.Format(time.RFC3339),
 	}
