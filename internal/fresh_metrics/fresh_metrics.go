@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"regexp"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -168,11 +169,30 @@ func matchAllConditions(dims map[string]string, dimConditions []*labels.Matcher)
 	return true
 }
 
+// Use a map of mutexes to lock only for specific cache keys
+var cacheMutexes sync.Map
+
 func (f *FreshMetrics) getAllDimensions(ctx context.Context, region string, namespace string, metricName string) ([]map[string]string, error) {
 	cacheKey := region + namespace + metricName
+
+	// Check if the cache already contains the result
 	if cache, ok := f.cache.Get(cacheKey); ok {
 		return cache, nil
 	}
+
+	// Get or create a mutex for the specific cache key
+	mutexInterface, _ := cacheMutexes.LoadOrStore(cacheKey, &sync.Mutex{})
+	mutex := mutexInterface.(*sync.Mutex)
+
+	// Lock the mutex for the specific cache key
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	// Double-check the cache after acquiring the lock
+	if cache, ok := f.cache.Get(cacheKey); ok {
+		return cache, nil
+	}
+
 	if rawResult, err := f.listMetrics(ctx, region, namespace, metricName); err != nil {
 		return nil, err
 	} else {
