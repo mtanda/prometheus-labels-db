@@ -75,6 +75,11 @@ WHERE ` + strings.Join(append(timeCondition, labelCondition...), " AND ")
 			}
 			return result, err
 		}
+
+		// check if we have enough results
+		if limit != 0 && len(result) >= limit {
+			break
+		}
 	}
 
 	// trim result to limit at the caller side
