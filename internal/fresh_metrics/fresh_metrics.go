@@ -162,9 +162,7 @@ func matchAllConditions(dims map[string]string, dimConditions []*labels.Matcher)
 				slog.Error("failed to compile regexp", "error", err)
 				return false
 			}
-			if r.Match([]byte(dims[dc.Name])) {
-				return false
-			}
+			return r.Match([]byte(dims[dc.Name]))
 		case labels.MatchNotRegexp:
 			r, err := regexp.Compile(dc.Value)
 			if err != nil {
@@ -172,9 +170,7 @@ func matchAllConditions(dims map[string]string, dimConditions []*labels.Matcher)
 				slog.Error("failed to compile regexp", "error", err)
 				return false
 			}
-			if !r.Match([]byte(dims[dc.Name])) {
-				return false
-			}
+			return !r.Match([]byte(dims[dc.Name]))
 		}
 	}
 	return true
