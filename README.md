@@ -9,8 +9,8 @@ It supports the Prometheus `/api/v1/series` API, enabling flexible search and us
 ### Local build
 
 ```sh
-go build -o recorder ./cmd/recorder/main.go ./cmd/recorder/recorder.go
-go build -o query ./cmd/query/main.go
+go build ./cmd/recorder
+go build ./cmd/query
 ```
 
 ### Package build
