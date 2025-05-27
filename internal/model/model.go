@@ -93,6 +93,10 @@ func (a Metric) Equal(b Metric) bool {
 
 func (a Metric) UniqueKey() string {
 	key := a.Namespace + a.MetricName + a.Region
+	// should sort dimensions by name to ensure consistent key generation
+	sort.Slice(a.Dimensions, func(i, j int) bool {
+		return a.Dimensions[i].Name < a.Dimensions[j].Name
+	})
 	for _, d := range a.Dimensions {
 		key += d.Name + d.Value
 	}
