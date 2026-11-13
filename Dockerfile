@@ -23,8 +23,9 @@ ENV PATH="/usr/local/go/bin:$PATH"
 WORKDIR /app
 COPY . .
 ARG SNAPSHOT=false
-ARG GITHUB_TOKEN
-RUN if [ "$SNAPSHOT" = "true" ]; then \
+# The token is mounted as a secret, so it is not stored in image layers.
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
+    if [ "$SNAPSHOT" = "true" ]; then \
     goreleaser release --snapshot --clean; \
     else \
     goreleaser release --clean; \
